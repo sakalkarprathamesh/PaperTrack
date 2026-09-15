@@ -18,11 +18,15 @@ import { useAuth } from '@/lib/auth-context';
 import { dataService } from '@/lib/data-service';
 import { GlobalSearchResult } from '@/lib/types';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { useTranslation } from '@/lib/i18n';
 
 export function AdminTopbar() {
   const { user, switchDemoUser } = useAuth();
+  const { t, formatLocaleDate } = useTranslation();
   const router = useRouter();
   const today = new Date();
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GlobalSearchResult | null>(null);
@@ -255,37 +259,42 @@ export function AdminTopbar() {
           </span>
         </div>
 
-        {/* Quick Role Switcher for instant local testing */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-          <span className="text-slate-500 px-2 font-medium hidden sm:inline">View As:</span>
-          <button
-            onClick={() => {
-              switchDemoUser('admin');
-              router.push('/admin/dashboard');
-            }}
-            className="px-2.5 py-1 rounded bg-red-700 text-white font-semibold text-xs shadow-xs"
-          >
-            Admin
-          </button>
-          <button
-            onClick={() => {
-              switchDemoUser('delivery');
-              router.push('/delivery/today');
-            }}
-            className="px-2.5 py-1 rounded hover:bg-white text-slate-700 font-medium text-xs transition-colors"
-          >
-            Delivery Staff
-          </button>
-          <button
-            onClick={() => {
-              switchDemoUser('customer');
-              router.push('/customer/dashboard');
-            }}
-            className="px-2.5 py-1 rounded hover:bg-white text-slate-700 font-medium text-xs transition-colors"
-          >
-            Customer
-          </button>
-        </div>
+        {/* Language Switcher */}
+        <LanguageSwitcher />
+
+        {/* Quick Role Switcher for instant local testing (hidden in production by default) */}
+        {showDemoSwitcher && (
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+            <span className="text-slate-500 px-2 font-medium hidden sm:inline">{t('nav.viewAs')}</span>
+            <button
+              onClick={() => {
+                switchDemoUser('admin');
+                router.push('/admin/dashboard');
+              }}
+              className="px-2.5 py-1 rounded bg-red-700 text-white font-semibold text-xs shadow-xs"
+            >
+              Admin
+            </button>
+            <button
+              onClick={() => {
+                switchDemoUser('delivery');
+                router.push('/delivery/today');
+              }}
+              className="px-2.5 py-1 rounded hover:bg-white text-slate-700 font-medium text-xs transition-colors"
+            >
+              Delivery Staff
+            </button>
+            <button
+              onClick={() => {
+                switchDemoUser('customer');
+                router.push('/customer/dashboard');
+              }}
+              className="px-2.5 py-1 rounded hover:bg-white text-slate-700 font-medium text-xs transition-colors"
+            >
+              Customer
+            </button>
+          </div>
+        )}
 
         {/* User badge */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-200">

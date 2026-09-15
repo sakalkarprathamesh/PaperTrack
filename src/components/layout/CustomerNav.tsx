@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Newspaper, LayoutDashboard, Receipt, CreditCard, User, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function CustomerNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, switchDemoUser } = useAuth();
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   const navLinks = [
     { label: 'My Dashboard', href: '/customer/dashboard', icon: LayoutDashboard },
@@ -32,33 +34,37 @@ export function CustomerNav() {
           </div>
         </Link>
 
-        {/* User Info & Switcher */}
+        {/* User Info, Language & Switcher */}
         <div className="flex items-center gap-3">
-          {/* View As Switcher for quick evaluation */}
-          <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
-            <span className="text-slate-400 px-1 text-[11px]">Role:</span>
-            <button
-              onClick={() => {
-                switchDemoUser('admin');
-                router.push('/admin/dashboard');
-              }}
-              className="px-2 py-0.5 rounded text-slate-600 hover:text-slate-900 text-[11px]"
-            >
-              Admin
-            </button>
-            <button
-              onClick={() => {
-                switchDemoUser('delivery');
-                router.push('/delivery/today');
-              }}
-              className="px-2 py-0.5 rounded text-slate-600 hover:text-slate-900 text-[11px]"
-            >
-              Delivery Staff
-            </button>
-            <button className="px-2 py-0.5 rounded bg-red-700 text-white font-bold text-[11px]">
-              Customer
-            </button>
-          </div>
+          <LanguageSwitcher compact />
+
+          {/* View As Switcher for quick evaluation (hidden in production by default) */}
+          {showDemoSwitcher && (
+            <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
+              <span className="text-slate-400 px-1 text-[11px]">Role:</span>
+              <button
+                onClick={() => {
+                  switchDemoUser('admin');
+                  router.push('/admin/dashboard');
+                }}
+                className="px-2 py-0.5 rounded text-slate-600 hover:text-slate-900 text-[11px]"
+              >
+                Admin
+              </button>
+              <button
+                onClick={() => {
+                  switchDemoUser('delivery');
+                  router.push('/delivery/today');
+                }}
+                className="px-2 py-0.5 rounded text-slate-600 hover:text-slate-900 text-[11px]"
+              >
+                Delivery Staff
+              </button>
+              <button className="px-2 py-0.5 rounded bg-red-700 text-white font-bold text-[11px]">
+                Customer
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200 text-xs">
             <span className="font-bold text-slate-800 hidden md:inline">{user?.fullName || 'Subscriber'}</span>

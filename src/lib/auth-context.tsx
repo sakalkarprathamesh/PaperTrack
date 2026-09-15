@@ -46,6 +46,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function syncAuthCookies(authUser: AuthUser | null) {
+  if (typeof document === 'undefined') return;
+  if (authUser) {
+    document.cookie = `papertrack_role=${authUser.role}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `papertrack_user_id=${authUser.id}; path=/; max-age=604800; SameSite=Lax`;
+  } else {
+    document.cookie = `papertrack_role=; path=/; max-age=0; SameSite=Lax`;
+    document.cookie = `papertrack_user_id=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,16 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check saved session in localStorage/cookie for prototype persistence
     const saved = localStorage.getItem('papertrack_session');
+    let currentUser: AuthUser = DEMO_USERS.admin;
     if (saved) {
       try {
-        setUser(JSON.parse(saved));
+        currentUser = JSON.parse(saved);
       } catch {
-        setUser(DEMO_USERS.admin);
+        currentUser = DEMO_USERS.admin;
       }
-    } else {
-      // Default to Admin for convenience
-      setUser(DEMO_USERS.admin);
     }
+    setUser(currentUser);
+    syncAuthCookies(currentUser);
     setIsLoading(false);
   }, []);
 
@@ -81,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
     setUser(matched);
+    syncAuthCookies(matched);
     localStorage.setItem('papertrack_session', JSON.stringify(matched));
     return true;
   };
@@ -88,13 +100,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchDemoUser = (key: 'admin' | 'delivery' | 'customer') => {
     const selected = DEMO_USERS[key];
     setUser(selected);
+    syncAuthCookies(selected);
     localStorage.setItem('papertrack_session', JSON.stringify(selected));
   };
 
   const logout = () => {
     setUser(null);
+    syncAuthCookies(null);
     localStorage.removeItem('papertrack_session');
   };
+
 
   return (
     <AuthContext.Provider value={{ user, login, logout, switchDemoUser, isLoading }}>

@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Newspaper, Truck, Users, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function DeliveryNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, switchDemoUser } = useAuth();
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800">
@@ -25,32 +27,36 @@ export function DeliveryNav() {
           </div>
         </div>
 
-        {/* View As Switcher & User */}
+        {/* View As Switcher, Language & User */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1 bg-slate-800 p-1 rounded-lg text-xs">
-            <span className="text-slate-400 px-1 text-[11px]">Role:</span>
-            <button
-              onClick={() => {
-                switchDemoUser('admin');
-                router.push('/admin/dashboard');
-              }}
-              className="px-2 py-0.5 rounded text-slate-300 hover:text-white text-[11px]"
-            >
-              Admin
-            </button>
-            <button className="px-2 py-0.5 rounded bg-red-700 text-white font-bold text-[11px]">
-              Delivery Staff
-            </button>
-            <button
-              onClick={() => {
-                switchDemoUser('customer');
-                router.push('/customer/dashboard');
-              }}
-              className="px-2 py-0.5 rounded text-slate-300 hover:text-white text-[11px]"
-            >
-              Customer
-            </button>
-          </div>
+          <LanguageSwitcher compact />
+
+          {showDemoSwitcher && (
+            <div className="hidden sm:flex items-center gap-1 bg-slate-800 p-1 rounded-lg text-xs">
+              <span className="text-slate-400 px-1 text-[11px]">Role:</span>
+              <button
+                onClick={() => {
+                  switchDemoUser('admin');
+                  router.push('/admin/dashboard');
+                }}
+                className="px-2 py-0.5 rounded text-slate-300 hover:text-white text-[11px]"
+              >
+                Admin
+              </button>
+              <button className="px-2 py-0.5 rounded bg-red-700 text-white font-bold text-[11px]">
+                Delivery Staff
+              </button>
+              <button
+                onClick={() => {
+                  switchDemoUser('customer');
+                  router.push('/customer/dashboard');
+                }}
+                className="px-2 py-0.5 rounded text-slate-300 hover:text-white text-[11px]"
+              >
+                Customer
+              </button>
+            </div>
+          )}
 
           <button
             onClick={logout}

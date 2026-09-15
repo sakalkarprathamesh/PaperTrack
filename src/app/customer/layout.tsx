@@ -10,10 +10,15 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/login');
+    if (!isLoading) {
+      if (!user) {
+        router.push('/login');
+      } else if (user.role !== 'CUSTOMER' && user.role !== 'ADMIN') {
+        router.push('/unauthorized');
+      }
     }
   }, [user, isLoading, router]);
+
 
   if (isLoading) {
     return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Loading your account...</div>;

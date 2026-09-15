@@ -9,7 +9,6 @@ import {
   Truck,
   Receipt,
   CreditCard,
-  FileSpreadsheet,
   BarChart3,
   Settings,
   Newspaper,
@@ -23,27 +22,28 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
+import { useTranslation } from '@/lib/i18n';
 
 export function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
 
   const navItems = [
-    { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-    { label: 'Customers', href: '/admin/customers', icon: Users },
-    { label: 'Daily Delivery', href: '/admin/delivery', icon: Truck },
-    { label: 'Monthly Billing', href: '/admin/billing', icon: Receipt },
-    { label: 'Payments', href: '/admin/payments', icon: CreditCard },
-    { label: 'Daily Collections', href: '/admin/collections', icon: IndianRupee },
-    { label: 'WhatsApp Reminders', href: '/admin/reminders', icon: MessageSquare },
-    { label: 'Delivery Staff', href: '/admin/delivery-boys', icon: UserCheck },
-    { label: 'Data Exports', href: '/admin/exports', icon: Download },
-    { label: 'Activity Timeline', href: '/admin/activity', icon: Activity },
-    { label: 'Diary CSV Import', href: '/admin/import', icon: UploadCloud },
-    { label: 'Reports & Ledger', href: '/admin/reports', icon: BarChart3 },
-    { label: 'Agency Settings', href: '/admin/settings', icon: Settings },
+    { key: 'nav.dashboard', defaultLabel: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { key: 'nav.customers', defaultLabel: 'Customers', href: '/admin/customers', icon: Users },
+    { key: 'nav.delivery', defaultLabel: 'Daily Delivery', href: '/admin/delivery', icon: Truck },
+    { key: 'nav.billing', defaultLabel: 'Monthly Billing', href: '/admin/billing', icon: Receipt },
+    { key: 'nav.payments', defaultLabel: 'Payments', href: '/admin/payments', icon: CreditCard },
+    { key: 'nav.collections', defaultLabel: 'Daily Collections', href: '/admin/collections', icon: IndianRupee },
+    { key: 'nav.reminders', defaultLabel: 'WhatsApp Reminders', href: '/admin/reminders', icon: MessageSquare },
+    { key: 'nav.deliveryStaff', defaultLabel: 'Delivery Staff', href: '/admin/delivery-boys', icon: UserCheck },
+    { key: 'nav.exports', defaultLabel: 'Data Exports', href: '/admin/exports', icon: Download },
+    { key: 'nav.activity', defaultLabel: 'Activity Timeline', href: '/admin/activity', icon: Activity },
+    { key: 'nav.import', defaultLabel: 'Diary CSV Import', href: '/admin/import', icon: UploadCloud },
+    { key: 'nav.reports', defaultLabel: 'Reports & Ledger', href: '/admin/reports', icon: BarChart3 },
+    { key: 'nav.settings', defaultLabel: 'Agency Settings', href: '/admin/settings', icon: Settings },
   ];
-
 
   return (
     <aside
@@ -59,10 +59,10 @@ export function AdminSidebar({ className }: { className?: string }) {
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-lg tracking-tight text-white">PAPERTRACK</span>
+            <span className="font-black text-lg tracking-tight text-white">{t('brand.name')}</span>
           </div>
           <p className="text-[10px] uppercase font-semibold text-red-400 tracking-wider">
-            Lokmat Agency Edition
+            {t('brand.subtitle')}
           </p>
         </div>
       </div>
@@ -72,6 +72,7 @@ export function AdminSidebar({ className }: { className?: string }) {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const label = t(item.key) || item.defaultLabel;
           return (
             <Link
               key={item.href}
@@ -84,7 +85,7 @@ export function AdminSidebar({ className }: { className?: string }) {
               )}
             >
               <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-white' : 'text-slate-400')} />
-              <span>{item.label}</span>
+              <span>{label}</span>
             </Link>
           );
         })}
@@ -99,7 +100,7 @@ export function AdminSidebar({ className }: { className?: string }) {
           </div>
           <button
             onClick={logout}
-            title="Sign out"
+            title={t('nav.logout')}
             className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
           >
             <LogOut className="w-4 h-4" />

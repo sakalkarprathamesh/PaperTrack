@@ -57,6 +57,24 @@ export default function DiaryImportPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // File Security Validation
+    const allowedExtensions = ['.csv', '.txt'];
+    const fileName = file.name.toLowerCase();
+    const hasValidExtension = allowedExtensions.some((ext) => fileName.endsWith(ext));
+
+    if (!hasValidExtension) {
+      alert('Security validation failed: Only .csv or .txt files are permitted.');
+      e.target.value = '';
+      return;
+    }
+
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      alert('File size exceeds the 5 MB limit. Please upload a smaller batch.');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -64,8 +82,12 @@ export default function DiaryImportPage() {
       setHasValidated(false);
       setImportResult(null);
     };
+    reader.onerror = () => {
+      alert('Failed to read file securely. Please check file permissions.');
+    };
     reader.readAsText(file);
   };
+
 
   const validateRows = () => {
     const lines = csvText.trim().split('\n');
