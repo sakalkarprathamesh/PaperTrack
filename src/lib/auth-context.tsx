@@ -47,6 +47,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function normalizeRole(roleStr?: string): UserRole {
+  const lower = (roleStr || '').toLowerCase();
+  if (lower === 'admin') return 'ADMIN';
+  if (lower === 'delivery_boy' || lower === 'delivery') return 'DELIVERY_BOY';
+  return 'CUSTOMER';
+}
+
 function syncAuthCookies(authUser: AuthUser | null) {
   if (typeof document === 'undefined') return;
   if (authUser) {
@@ -87,17 +94,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .single();
 
             if (profile) {
+              const userRole = normalizeRole(profile.role);
               let customerId: string | undefined;
               let deliveryBoyId: string | undefined;
 
-              if (profile.role === 'CUSTOMER') {
+              if (userRole === 'CUSTOMER') {
                 const { data: cust } = await supabase
                   .from('customers')
                   .select('id')
                   .eq('profile_id', profile.id)
                   .maybeSingle();
                 customerId = cust?.id;
-              } else if (profile.role === 'DELIVERY_BOY') {
+              } else if (userRole === 'DELIVERY_BOY') {
                 const { data: staff } = await supabase
                   .from('delivery_boys')
                   .select('id')
@@ -110,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: profile.id,
                 email: authUser.email || '',
                 fullName: profile.full_name,
-                role: profile.role as UserRole,
+                role: userRole,
                 customerId,
                 deliveryBoyId,
               };
@@ -179,17 +187,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('User profile not found. Please contact the agency administrator.');
       }
 
+      const userRole = normalizeRole(profile.role);
       let customerId: string | undefined;
       let deliveryBoyId: string | undefined;
 
-      if (profile.role === 'CUSTOMER') {
+      if (userRole === 'CUSTOMER') {
         const { data: cust } = await supabase
           .from('customers')
           .select('id')
           .eq('profile_id', profile.id)
           .maybeSingle();
         customerId = cust?.id;
-      } else if (profile.role === 'DELIVERY_BOY') {
+      } else if (userRole === 'DELIVERY_BOY') {
         const { data: staff } = await supabase
           .from('delivery_boys')
           .select('id')
@@ -202,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: profile.id,
         email: authData.user.email || email,
         fullName: profile.full_name,
-        role: profile.role as UserRole,
+        role: userRole,
         customerId,
         deliveryBoyId,
       };

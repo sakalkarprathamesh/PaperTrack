@@ -4,8 +4,8 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Get authenticated role from cookie
-  const userRole = request.cookies.get('papertrack_role')?.value;
+  // Get authenticated role from cookie (case-insensitive)
+  const userRole = request.cookies.get('papertrack_role')?.value?.toUpperCase();
 
   // 1. ADMIN ROUTES GUARD
   if (pathname.startsWith('/admin')) {
