@@ -14,10 +14,15 @@ import {
   AlertCircle,
   Loader2,
   Clock,
+  Truck,
+  KeyRound,
+  HelpCircle,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { validatePin, validateCustomerLoginId, validateDeliveryBoyId } from '@/lib/security';
 
-type LoginMode = 'admin' | 'customer';
+type LoginMode = 'admin' | 'customer' | 'delivery_boy';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
@@ -35,19 +40,23 @@ export default function LoginPage() {
 
   // Customer form state
   const [customerLoginId, setCustomerLoginId] = useState('');
-  const [customerPassword, setCustomerPassword] = useState('');
-  const [showCustomerPassword, setShowCustomerPassword] = useState(false);
+  const [customerPin, setCustomerPin] = useState('');
+  const [showCustomerPin, setShowCustomerPin] = useState(false);
+
+  // Delivery Staff form state
+  const [deliveryBoyId, setDeliveryBoyId] = useState('');
+  const [deliveryBoyPin, setDeliveryBoyPin] = useState('');
+  const [showDeliveryBoyPin, setShowDeliveryBoyPin] = useState(false);
 
   // Shared UI state
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
-  // Client-side rate limiting / lockout state
+  // Rate limiting / lockout countdown
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutTimer, setLockoutTimer] = useState(0);
 
-  // Countdown timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (lockoutTimer > 0) {
@@ -104,16 +113,23 @@ export default function LoginPage() {
     setError('');
 
     const cleanId = customerLoginId.trim();
-    const cleanPass = customerPassword.trim();
+    const cleanPin = customerPin.trim();
 
-    if (!cleanId || !cleanPass) {
-      setError('Please enter both your Login ID and password.');
+    const idCheck = validateCustomerLoginId(cleanId);
+    if (!idCheck.valid) {
+      setError(idCheck.error || 'Customer Login ID must contain numeric digits only.');
+      return;
+    }
+
+    const pinCheck = validatePin(cleanPin);
+    if (!pinCheck.valid) {
+      setError(pinCheck.error || 'PIN must be exactly 4 numeric digits.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await login(cleanId, cleanPass, 'customer');
+      const result = await login(cleanId, cleanPin, 'customer');
       if (result.success) {
         setFailedAttempts(0);
         router.push('/customer/dashboard');
@@ -126,7 +142,48 @@ export default function LoginPage() {
         setLockoutTimer(LOCKOUT_SECONDS);
         setError(`Too many failed login attempts. For security, please wait ${LOCKOUT_SECONDS} seconds before trying again.`);
       } else {
-        setError(err.message || 'Invalid login credentials. Please check your details and try again.');
+        setError(err.message || 'Invalid Login ID or PIN.');
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeliveryBoySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (lockoutTimer > 0) return;
+    setError('');
+
+    const rawId = deliveryBoyId.trim();
+    const cleanPin = deliveryBoyPin.trim();
+
+    const dboyCheck = validateDeliveryBoyId(rawId);
+    if (!dboyCheck.valid) {
+      setError(dboyCheck.error || 'Delivery Staff ID must be in format D followed by 3 digits (e.g. D001).');
+      return;
+    }
+
+    const pinCheck = validatePin(cleanPin);
+    if (!pinCheck.valid) {
+      setError(pinCheck.error || 'PIN must be exactly 4 numeric digits.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await login(dboyCheck.normalized!, cleanPin, 'delivery_boy');
+      if (result.success) {
+        setFailedAttempts(0);
+        router.push('/delivery/dashboard');
+      }
+    } catch (err: any) {
+      const newFails = failedAttempts + 1;
+      setFailedAttempts(newFails);
+
+      if (newFails >= MAX_FAILED_ATTEMPTS) {
+        setLockoutTimer(LOCKOUT_SECONDS);
+        setError(`Too many failed login attempts. For security, please wait ${LOCKOUT_SECONDS} seconds before trying again.`);
+      } else {
+        setError(err.message || 'Invalid Login ID or PIN.');
       }
       setIsLoading(false);
     }
@@ -136,7 +193,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
-      {/* Newspaper Header Masthead */}
+      {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-700 text-white shadow-lg mb-4 ring-4 ring-red-100">
           <Newspaper className="w-8 h-8" />
@@ -151,29 +208,29 @@ export default function LoginPage() {
           </p>
           <span className="h-px w-8 bg-red-700"></span>
         </div>
-        <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto">
-          Newspaper Distribution, Daily Route Attendance & Monthly Billing Desk
+        <p className="text-xs text-slate-500 mt-2">
+          Newspaper Distribution & Daily Accounts Desk
         </p>
       </div>
 
-      {/* Main Authentication Card */}
+      {/* Main Login Card */}
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-xl shadow-slate-200/50 border border-slate-200/80 rounded-2xl sm:px-10">
-          {/* Dual Mode Switcher Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-xl mb-6 border border-slate-200">
+        <div className="bg-white py-8 px-6 sm:px-10 shadow-xl rounded-2xl border border-slate-200">
+          {/* 3-Mode Tab Navigation */}
+          <div className="flex rounded-xl bg-slate-100 p-1 mb-6 border border-slate-200 text-xs font-semibold">
             <button
               type="button"
               onClick={() => {
                 setMode('admin');
                 setError('');
               }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 rounded-lg transition-all text-center ${
                 mode === 'admin'
-                  ? 'bg-white text-red-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Admin Login
+              Admin
             </button>
             <button
               type="button"
@@ -181,248 +238,328 @@ export default function LoginPage() {
                 setMode('customer');
                 setError('');
               }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 rounded-lg transition-all text-center ${
                 mode === 'customer'
-                  ? 'bg-white text-red-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Customer Login
+              Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('delivery_boy');
+                setError('');
+              }}
+              className={`flex-1 py-2 rounded-lg transition-all text-center ${
+                mode === 'delivery_boy'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Delivery Staff
             </button>
           </div>
 
-          {/* Mode Subtitle Description */}
-          <div className="mb-5 text-left">
-            <h2 className="text-sm font-bold text-slate-900">
-              {mode === 'admin' ? 'Agency Admin Sign In' : 'Subscriber Sign In'}
-            </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              {mode === 'admin'
-                ? 'Sign in to access route operations, subscriber billing, and ledgers.'
-                : 'Sign in with your assigned Login ID to view daily bills and receipts.'}
-            </p>
-          </div>
-
-          {/* Error Banner */}
+          {/* Error Alert */}
           {error && (
-            <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-red-700 text-xs animate-in fade-in-50">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="flex-1 font-medium leading-relaxed">{error}</div>
+            <div className="mb-6 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Rate-Limit Cooldown Banner */}
+          {/* Rate-limiting Lockout Banner */}
           {isLocked && (
-            <div className="mb-5 p-3.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs">
-              <Clock className="w-4 h-4 shrink-0 animate-spin" />
-              <span className="font-semibold">
-                Cooldown active: retry in {lockoutTimer}s
+            <div className="mb-6 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-700 animate-spin shrink-0" />
+              <span>
+                Account locked. Try again in <strong>{lockoutTimer}s</strong>.
               </span>
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* ADMIN LOGIN FORM                                         */}
-          {/* ======================================================== */}
+          {/* ====================================================== */}
+          {/* 1. ADMIN LOGIN FORM                                   */}
+          {/* ====================================================== */}
           {mode === 'admin' && (
             <form onSubmit={handleAdminSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Email Address
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Admin Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
                     type="email"
                     required
-                    autoComplete="email"
-                    disabled={isLocked}
+                    disabled={isLocked || isLoading}
                     placeholder="sakalkarashok77@gmail.com"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-700 focus:ring-2 focus:ring-red-700/20 transition-all shadow-xs disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotModal(true)}
-                    className="text-[11px] text-red-700 hover:text-red-800 font-medium hover:underline"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Password
+                </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
                     type={showAdminPassword ? 'text' : 'password'}
                     required
-                    autoComplete="current-password"
-                    disabled={isLocked}
+                    disabled={isLocked || isLoading}
                     placeholder="••••••••"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-700 focus:ring-2 focus:ring-red-700/20 transition-all shadow-xs disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full pl-9 pr-10 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    tabIndex={-1}
                     aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
                   >
                     {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isLoading || isLocked}
-                  className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl shadow-md text-xs font-bold text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700/30 transition-all disabled:opacity-60 cursor-pointer"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Signing In...</span>
-                    </>
-                  ) : isLocked ? (
-                    <span>Wait {lockoutTimer}s...</span>
-                  ) : (
-                    <>
-                      <span>Sign In as Admin</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isLocked || isLoading}
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-red-700 hover:bg-red-800 active:bg-red-900 text-white text-xs font-bold tracking-wide shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In to Admin Portal</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </form>
           )}
 
-          {/* ======================================================== */}
-          {/* CUSTOMER LOGIN FORM                                      */}
-          {/* ======================================================== */}
+          {/* ====================================================== */}
+          {/* 2. CUSTOMER LOGIN FORM                                */}
+          {/* ====================================================== */}
           {mode === 'customer' && (
             <form onSubmit={handleCustomerSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Customer Login ID
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
                     type="text"
-                    required
                     inputMode="numeric"
-                    autoComplete="username"
-                    disabled={isLocked}
-                    placeholder="e.g. 919822111001"
+                    required
+                    disabled={isLocked || isLoading}
+                    placeholder="Enter numeric Login ID (e.g. 12345)"
                     value={customerLoginId}
-                    onChange={(e) => setCustomerLoginId(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-700 focus:ring-2 focus:ring-red-700/20 transition-all shadow-xs disabled:bg-slate-50 disabled:text-slate-400 font-mono"
+                    onChange={(e) => setCustomerLoginId(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
                   />
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Enter your numeric subscriber ID or mobile number provided by the agency.
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Numeric digits only. Provided during customer registration.
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Password
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    4-Digit PIN
                   </label>
                   <button
                     type="button"
-                    onClick={() => setShowForgotModal(true)}
-                    className="text-[11px] text-red-700 hover:text-red-800 font-medium hover:underline"
+                    onClick={() => setShowHelpModal(true)}
+                    className="text-[11px] text-red-700 hover:underline font-semibold"
                   >
-                    Forgot password?
+                    Forgot PIN?
                   </button>
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
-                    type={showCustomerPassword ? 'text' : 'password'}
+                    type={showCustomerPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
                     required
-                    autoComplete="current-password"
-                    disabled={isLocked}
-                    placeholder="••••••••"
-                    value={customerPassword}
-                    onChange={(e) => setCustomerPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-700 focus:ring-2 focus:ring-red-700/20 transition-all shadow-xs disabled:bg-slate-50 disabled:text-slate-400"
+                    disabled={isLocked || isLoading}
+                    placeholder="••••"
+                    value={customerPin}
+                    onChange={(e) => setCustomerPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                    className="w-full pl-9 pr-10 py-2 text-xs rounded-lg border border-slate-300 font-mono tracking-widest text-center focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowCustomerPassword(!showCustomerPassword)}
-                    aria-label={showCustomerPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1"
+                    onClick={() => setShowCustomerPin(!showCustomerPin)}
+                    tabIndex={-1}
+                    aria-label={showCustomerPin ? 'Hide PIN' : 'Show PIN'}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
                   >
-                    {showCustomerPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showCustomerPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isLoading || isLocked}
-                  className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl shadow-md text-xs font-bold text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700/30 transition-all disabled:opacity-60 cursor-pointer"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Signing In...</span>
-                    </>
-                  ) : isLocked ? (
-                    <span>Wait {lockoutTimer}s...</span>
-                  ) : (
-                    <>
-                      <span>Sign In as Subscriber</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isLocked || isLoading}
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-red-700 hover:bg-red-800 active:bg-red-900 text-white text-xs font-bold tracking-wide shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In to Customer Portal</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </form>
           )}
 
-          {/* Secure Environment Badge */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400 text-[11px]">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Supabase Encrypted Session • Role Isolation</span>
+          {/* ====================================================== */}
+          {/* 3. DELIVERY BOY LOGIN FORM                             */}
+          {/* ====================================================== */}
+          {mode === 'delivery_boy' && (
+            <form onSubmit={handleDeliveryBoySubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Delivery Staff ID
+                </label>
+                <div className="relative">
+                  <Truck className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    maxLength={4}
+                    disabled={isLocked || isLoading}
+                    placeholder="e.g. D001"
+                    value={deliveryBoyId}
+                    onChange={(e) => setDeliveryBoyId(e.target.value.toUpperCase())}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono uppercase focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Format: D followed by 3 digits (e.g. D001, D002).
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    4-Digit PIN
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowHelpModal(true)}
+                    className="text-[11px] text-red-700 hover:underline font-semibold"
+                  >
+                    Forgot PIN?
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type={showDeliveryBoyPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    required
+                    disabled={isLocked || isLoading}
+                    placeholder="••••"
+                    value={deliveryBoyPin}
+                    onChange={(e) => setDeliveryBoyPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                    className="w-full pl-9 pr-10 py-2 text-xs rounded-lg border border-slate-300 font-mono tracking-widest text-center focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeliveryBoyPin(!showDeliveryBoyPin)}
+                    tabIndex={-1}
+                    aria-label={showDeliveryBoyPin ? 'Hide PIN' : 'Show PIN'}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  >
+                    {showDeliveryBoyPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLocked || isLoading}
+                className="w-full mt-2 py-2.5 px-4 rounded-lg bg-red-700 hover:bg-red-800 active:bg-red-900 text-white text-xs font-bold tracking-wide shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In to Delivery Route</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* Security Assurance Footer */}
+          <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-500 text-[11px]">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Secure 256-bit encrypted authentication</span>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-slate-400 mt-8">
-          PaperTrack &copy; {new Date().getFullYear()} Lokmat Newspaper Agency. All rights reserved.
-        </p>
       </div>
 
-      {/* Forgot Password Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-bold text-slate-900 mb-2">Password Assistance</h3>
-            <p className="text-xs text-slate-600 leading-relaxed mb-4">
-              {mode === 'admin'
-                ? 'To reset your Admin credentials, use your Supabase project dashboard or contact system support.'
-                : 'Please contact the PaperTrack Agency Administrator. Subscriber account credentials and one-time passwords are managed securely from the agency desk.'}
+      {/* Help / Forgot PIN Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                <HelpCircle className="w-4 h-4 text-red-700" />
+                <span>Portal Access Help</span>
+              </div>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              If you have forgotten your Login ID or 4-digit PIN, please contact your agency administrator.
+              The Admin can verify your details and issue or reset your PIN immediately.
             </p>
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(false)}
-              className="w-full py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition-colors"
-            >
-              Close
-            </button>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg"
+              >
+                Got It
+              </button>
+            </div>
           </div>
         </div>
       )}

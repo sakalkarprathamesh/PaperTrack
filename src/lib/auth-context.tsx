@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserRole } from './types';
 import { createClient } from './supabase/client';
+import { dataService } from './data-service';
+import { verifyPin } from './security';
 
 export interface AuthUser {
   id: string;
@@ -38,7 +40,11 @@ export const DEMO_USERS: Record<string, AuthUser> = {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (identifier: string, password?: string, mode?: 'admin' | 'customer') => Promise<{ success: boolean; role: UserRole }>;
+  login: (
+    identifier: string,
+    passwordOrPin?: string,
+    mode?: 'admin' | 'customer' | 'delivery_boy'
+  ) => Promise<{ success: boolean; role: UserRole }>;
   logout: () => Promise<void>;
   switchDemoUser: (key: 'admin' | 'delivery' | 'customer') => void;
   isLoading: boolean;
@@ -59,9 +65,11 @@ function syncAuthCookies(authUser: AuthUser | null) {
   if (authUser) {
     document.cookie = `papertrack_role=${authUser.role}; path=/; max-age=604800; SameSite=Lax`;
     document.cookie = `papertrack_user_id=${authUser.id}; path=/; max-age=604800; SameSite=Lax`;
+    document.cookie = `papertrack_session=${encodeURIComponent(JSON.stringify(authUser))}; path=/; max-age=604800; SameSite=Lax`;
   } else {
     document.cookie = `papertrack_role=; path=/; max-age=0; SameSite=Lax; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
     document.cookie = `papertrack_user_id=; path=/; max-age=0; SameSite=Lax; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    document.cookie = `papertrack_session=; path=/; max-age=0; SameSite=Lax; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   }
 }
 
@@ -80,6 +88,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     async function initAuth() {
+      // 1. Check cookie session first (preserves Customer and Delivery Staff sessions across refreshes)
+      if (typeof document !== 'undefined') {
+        const match = document.cookie.match(/(?:^|;\s*)papertrack_session=([^;]+)/);
+        if (match) {
+          try {
+            const parsed = JSON.parse(decodeURIComponent(match[1]));
+            if (parsed && parsed.id && parsed.role && isMounted) {
+              setUser(parsed);
+              setIsLoading(false);
+              if (parsed.role !== 'ADMIN') {
+                return;
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // 2. Supabase Auth Session (for Admin)
       if (isSupabaseConfigured()) {
         try {
           const supabase = createClient();
@@ -112,25 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Offline/Local Development fallback session (disabled in production)
-      if (process.env.NODE_ENV !== 'production') {
-        try {
-          const saved = localStorage.getItem('papertrack_session');
-          if (saved && isMounted) {
-            const parsed = JSON.parse(saved);
-            setUser(parsed);
-            syncAuthCookies(parsed);
-            setIsLoading(false);
-            return;
-          }
-        } catch {
-          // Ignore parse issues
-        }
-      }
-
       if (isMounted) {
-        setUser(null);
-        syncAuthCookies(null);
         setIsLoading(false);
       }
     }
@@ -213,151 +221,148 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (
       identifier: string,
-      password?: string,
-      mode: 'admin' | 'customer' = 'admin'
+      passwordOrPin?: string,
+      mode: 'admin' | 'customer' | 'delivery_boy' = 'admin'
     ): Promise<{ success: boolean; role: UserRole }> => {
       const cleanIdentifier = identifier.trim();
-      const cleanPassword = (password || '').trim();
+      const cleanSecret = (passwordOrPin || '').trim();
 
-      if (!cleanIdentifier || !cleanPassword) {
-        throw new Error('Please enter both your credentials and password.');
+      if (!cleanIdentifier || !cleanSecret) {
+        throw new Error(
+          mode === 'admin'
+            ? 'Please enter both your email address and password.'
+            : 'Please enter both your Login ID and 4-digit PIN.'
+        );
       }
 
-      // Format target email based on login mode
-      let targetEmails: string[] = [];
-
-      if (mode === 'customer') {
-        if (cleanIdentifier.includes('@')) {
-          targetEmails = [cleanIdentifier.toLowerCase()];
-        } else {
-          const digits = cleanIdentifier.replace(/[^0-9]/g, '');
-          if (!digits) {
-            throw new Error('Please enter a valid numeric Login ID.');
-          }
-          targetEmails.push(`${digits}@papertrack.com`);
-          // If customer entered 10 digits without Indian country code 91, also support 91 prefix
-          if (digits.length === 10) {
-            targetEmails.push(`91${digits}@papertrack.com`);
-          } else if (digits.length === 12 && digits.startsWith('91')) {
-            targetEmails.push(`${digits.slice(2)}@papertrack.com`);
-          }
-        }
-      } else {
-        targetEmails = [cleanIdentifier.toLowerCase()];
-      }
-
-      // 1. Supabase Authentication (Production)
-      if (isSupabaseConfigured()) {
-        const supabase = createClient();
-        let authData: any = null;
-        let lastError: any = null;
-
-        for (const candidateEmail of targetEmails) {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: candidateEmail,
-            password: cleanPassword,
+      // ==========================================
+      // A. CUSTOMER & DELIVERY BOY PIN LOGIN
+      // ==========================================
+      if (mode === 'customer' || mode === 'delivery_boy') {
+        // First try the secure server-side PIN authentication API route
+        try {
+          const res = await fetch('/api/auth/pin-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode,
+              loginId: cleanIdentifier,
+              pin: cleanSecret,
+            }),
           });
 
-          if (!error && data?.user) {
-            authData = data;
-            break;
-          }
-          lastError = error;
-        }
+          const data = await res.json().catch(() => ({}));
 
-        if (!authData?.user) {
-          // Generic security error message (does not leak account existence)
+          if (!res.ok) {
+            throw new Error(data.error || 'Invalid Login ID or PIN.');
+          }
+
+          if (data.user) {
+            setUser(data.user);
+            syncAuthCookies(data.user);
+            return { success: true, role: data.role };
+          }
+        } catch (apiErr: any) {
+          // If the error was returned by the API (like 401, 429, 403), rethrow it
+          if (
+            apiErr.message &&
+            !apiErr.message.includes('fetch') &&
+            !apiErr.message.includes('network') &&
+            !apiErr.message.includes('Failed to fetch')
+          ) {
+            throw apiErr;
+          }
+
+          // Offline fallback using local dataService and secure verifyPin
+          if (mode === 'customer') {
+            const cust = dataService.getCustomerByLoginId(cleanIdentifier);
+            if (!cust || !verifyPin(cleanSecret, cust.pin_hash)) {
+              if (cust) dataService.recordFailedCustomerLogin(cust.id);
+              throw new Error('Invalid Login ID or PIN.');
+            }
+            if (cust.login_enabled === false) {
+              throw new Error('Account portal login is disabled. Please contact Admin.');
+            }
+            dataService.resetCustomerFailedAttempts(cust.id);
+            const authUser: AuthUser = {
+              id: cust.profile_id || cust.id,
+              email: `${cleanIdentifier}@papertrack.com`,
+              fullName: cust.name,
+              role: 'CUSTOMER',
+              customerId: cust.id,
+            };
+            setUser(authUser);
+            syncAuthCookies(authUser);
+            return { success: true, role: 'CUSTOMER' };
+          } else {
+            const boy = dataService.getDeliveryBoyByLoginId(cleanIdentifier);
+            if (!boy || !verifyPin(cleanSecret, boy.pin_hash)) {
+              if (boy) dataService.recordFailedDeliveryBoyLogin(boy.id);
+              throw new Error('Invalid Login ID or PIN.');
+            }
+            if (boy.login_enabled === false) {
+              throw new Error('Account portal login is disabled. Please contact Admin.');
+            }
+            dataService.resetDeliveryBoyFailedAttempts(boy.id);
+            const authUser: AuthUser = {
+              id: boy.profile_id || boy.id,
+              email: `${cleanIdentifier.toLowerCase()}@papertrack.com`,
+              fullName: boy.name,
+              role: 'DELIVERY_BOY',
+              deliveryBoyId: boy.id,
+            };
+            setUser(authUser);
+            syncAuthCookies(authUser);
+            return { success: true, role: 'DELIVERY_BOY' };
+          }
+        }
+      }
+
+      // ==========================================
+      // B. ADMIN AUTHENTICATION (Supabase Auth)
+      // ==========================================
+      const cleanEmail = cleanIdentifier.toLowerCase();
+
+      if (isSupabaseConfigured()) {
+        const supabase = createClient();
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanSecret,
+        });
+
+        if (authError || !authData?.user) {
           throw new Error('Invalid login credentials. Please check your details and try again.');
         }
 
-        // Query database profile
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, full_name, role, phone')
+          .select('id, full_name, role')
           .eq('id', authData.user.id)
           .maybeSingle();
 
-        // Handle profile mapping
-        let userRole: UserRole = 'ADMIN';
-        let fullName = 'Admin (Agency Owner)';
-        let customerId: string | undefined;
-        let deliveryBoyId: string | undefined;
-
-        if (profile) {
-          userRole = normalizeRole(profile.role);
-          fullName = profile.full_name;
-
-          if (userRole === 'CUSTOMER') {
-            const { data: cust } = await supabase
-              .from('customers')
-              .select('id')
-              .or(`profile_id.eq.${profile.id},phone.ilike.%${cleanIdentifier}%`)
-              .maybeSingle();
-            customerId = cust?.id;
-          } else if (userRole === 'DELIVERY_BOY') {
-            const { data: staff } = await supabase
-              .from('delivery_boys')
-              .select('id')
-              .eq('profile_id', profile.id)
-              .maybeSingle();
-            deliveryBoyId = staff?.id;
-          }
-        } else {
-          // If user logged in as admin email without profile, create admin profile
-          if (authData.user.email?.toLowerCase() === 'sakalkarashok77@gmail.com' || mode === 'admin') {
-            userRole = 'ADMIN';
-            fullName = 'Admin (Agency Owner)';
-            await supabase.from('profiles').upsert({
-              id: authData.user.id,
-              full_name: fullName,
-              role: 'admin',
-            });
-          } else {
-            throw new Error('Invalid login credentials. Please check your details and try again.');
-          }
-        }
+        const role: UserRole = profile ? normalizeRole(profile.role) : 'ADMIN';
+        const fullName = profile?.full_name || 'Admin (Agency Owner)';
 
         const authUser: AuthUser = {
           id: authData.user.id,
-          email: authData.user.email || targetEmails[0],
+          email: authData.user.email || cleanEmail,
           fullName,
-          role: userRole,
-          customerId,
-          deliveryBoyId,
+          role,
         };
 
         setUser(authUser);
         syncAuthCookies(authUser);
-        return { success: true, role: userRole };
+        return { success: true, role };
       }
 
-      // 2. Development-Only Offline Fallback (when Supabase credentials not yet supplied)
+      // Development-only offline fallback for Admin
       if (process.env.NODE_ENV !== 'production') {
-        let matched: AuthUser | undefined;
-
-        if (mode === 'admin' && (cleanIdentifier === 'sakalkarashok77@gmail.com' || cleanIdentifier === 'admin@papertrack.com')) {
-          matched = DEMO_USERS.admin;
-        } else if (mode === 'customer') {
-          matched = DEMO_USERS.customer;
+        if (cleanEmail === 'sakalkarashok77@gmail.com' || cleanEmail === 'admin@papertrack.com') {
+          const authUser = DEMO_USERS.admin;
+          setUser(authUser);
+          syncAuthCookies(authUser);
+          return { success: true, role: 'ADMIN' };
         }
-
-        if (!matched) {
-          const role: UserRole = mode === 'customer' ? 'CUSTOMER' : 'ADMIN';
-          matched = {
-            id: `usr-${Date.now()}`,
-            email: targetEmails[0],
-            fullName: mode === 'customer' ? 'Subscriber' : 'Admin (Agency Owner)',
-            role,
-            customerId: mode === 'customer' ? '10000000-0000-0000-0000-000000000001' : undefined,
-          };
-        }
-
-        setUser(matched);
-        syncAuthCookies(matched);
-        try {
-          localStorage.setItem('papertrack_session', JSON.stringify(matched));
-        } catch {}
-        return { success: true, role: matched.role };
       }
 
       throw new Error(

@@ -269,10 +269,24 @@ class DataStore {
   }
 
   createCustomer(data: Omit<Customer, 'id' | 'created_at' | 'updated_at'> & { initial_daily_rate?: number }) {
+    if (data.login_id) {
+      const cleanLoginId = data.login_id.trim();
+      const existing = this.customers.find((c) => c.login_id === cleanLoginId);
+      if (existing) {
+        throw new Error('Customer Login ID is already in use by another subscriber');
+      }
+    }
+
     const id = `cust-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newCustomer: Customer = {
       ...data,
       id,
+      login_id: data.login_id ? data.login_id.trim() : undefined,
+      pin_hash: data.pin_hash,
+      login_enabled: data.login_enabled !== undefined ? data.login_enabled : true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      pin_updated_at: data.pin_hash ? new Date().toISOString() : undefined,
       advance_balance: data.advance_balance || 0.0,
       current_balance: 0.0,
       created_at: new Date().toISOString(),
@@ -299,7 +313,7 @@ class DataStore {
       entity_type: 'CUSTOMER',
       entity_id: id,
       action: 'CREATE',
-      details: { name: newCustomer.name, phone: newCustomer.phone },
+      details: { name: newCustomer.name, phone: newCustomer.phone, login_id: newCustomer.login_id },
       created_at: new Date().toISOString(),
     });
 
@@ -309,6 +323,21 @@ class DataStore {
   updateCustomer(id: string, updates: Partial<Customer>) {
     const idx = this.customers.findIndex((c) => c.id === id);
     if (idx === -1) throw new Error('Customer not found');
+
+    if (updates.login_id) {
+      const cleanLoginId = updates.login_id.trim();
+      const existing = this.customers.find((c) => c.login_id === cleanLoginId && c.id !== id);
+      if (existing) {
+        throw new Error('Customer Login ID is already in use by another subscriber');
+      }
+      updates.login_id = cleanLoginId;
+    }
+
+    if (updates.pin_hash) {
+      updates.pin_updated_at = new Date().toISOString();
+      updates.failed_login_attempts = 0;
+      updates.locked_until = null;
+    }
 
     this.customers[idx] = {
       ...this.customers[idx],
@@ -327,6 +356,36 @@ class DataStore {
     return this.customers[idx];
   }
 
+  getCustomerByLoginId(loginId: string): Customer | null {
+    const clean = loginId.trim();
+    return this.customers.find((c) => c.login_id === clean) || null;
+  }
+
+  recordFailedCustomerLogin(customerId: string): { locked: boolean; remainingAttempts: number; lockedUntil?: string } {
+    const idx = this.customers.findIndex((c) => c.id === customerId);
+    if (idx === -1) return { locked: false, remainingAttempts: 0 };
+
+    const fails = (this.customers[idx].failed_login_attempts || 0) + 1;
+    this.customers[idx].failed_login_attempts = fails;
+
+    if (fails >= 5) {
+      const lockoutMinutes = 15;
+      const lockedUntil = new Date(Date.now() + lockoutMinutes * 60 * 1000).toISOString();
+      this.customers[idx].locked_until = lockedUntil;
+      return { locked: true, remainingAttempts: 0, lockedUntil };
+    }
+
+    return { locked: false, remainingAttempts: Math.max(0, 5 - fails) };
+  }
+
+  resetCustomerFailedAttempts(customerId: string): void {
+    const idx = this.customers.findIndex((c) => c.id === customerId);
+    if (idx !== -1) {
+      this.customers[idx].failed_login_attempts = 0;
+      this.customers[idx].locked_until = null;
+    }
+  }
+
   // DELIVERY BOYS
   getDeliveryBoys() {
     return this.deliveryBoys.map((boy) => {
@@ -342,11 +401,30 @@ class DataStore {
     return this.deliveryBoys.find((b) => b.id === id) || null;
   }
 
+  getDeliveryBoyByLoginId(loginId: string): DeliveryBoy | null {
+    const clean = loginId.trim().toUpperCase();
+    return this.deliveryBoys.find((b) => b.login_id?.toUpperCase() === clean) || null;
+  }
+
   createDeliveryBoy(data: Omit<DeliveryBoy, 'id' | 'created_at' | 'updated_at'>) {
+    if (data.login_id) {
+      const cleanLoginId = data.login_id.trim().toUpperCase();
+      const existing = this.deliveryBoys.find((b) => b.login_id?.toUpperCase() === cleanLoginId);
+      if (existing) {
+        throw new Error(`Delivery Staff ID ${cleanLoginId} is already assigned`);
+      }
+    }
+
     const id = `dboy-${Date.now()}`;
     const newBoy: DeliveryBoy = {
       ...data,
       id,
+      login_id: data.login_id ? data.login_id.trim().toUpperCase() : undefined,
+      pin_hash: data.pin_hash,
+      login_enabled: data.login_enabled !== undefined ? data.login_enabled : true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      pin_updated_at: data.pin_hash ? new Date().toISOString() : undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -357,12 +435,53 @@ class DataStore {
   updateDeliveryBoy(id: string, updates: Partial<DeliveryBoy>) {
     const idx = this.deliveryBoys.findIndex((b) => b.id === id);
     if (idx === -1) throw new Error('Delivery boy not found');
+
+    if (updates.login_id) {
+      const cleanLoginId = updates.login_id.trim().toUpperCase();
+      const existing = this.deliveryBoys.find((b) => b.login_id?.toUpperCase() === cleanLoginId && b.id !== id);
+      if (existing) {
+        throw new Error(`Delivery Staff ID ${cleanLoginId} is already assigned to another staff member`);
+      }
+      updates.login_id = cleanLoginId;
+    }
+
+    if (updates.pin_hash) {
+      updates.pin_updated_at = new Date().toISOString();
+      updates.failed_login_attempts = 0;
+      updates.locked_until = null;
+    }
+
     this.deliveryBoys[idx] = {
       ...this.deliveryBoys[idx],
       ...updates,
       updated_at: new Date().toISOString(),
     };
     return this.deliveryBoys[idx];
+  }
+
+  recordFailedDeliveryBoyLogin(deliveryBoyId: string): { locked: boolean; remainingAttempts: number; lockedUntil?: string } {
+    const idx = this.deliveryBoys.findIndex((b) => b.id === deliveryBoyId);
+    if (idx === -1) return { locked: false, remainingAttempts: 0 };
+
+    const fails = (this.deliveryBoys[idx].failed_login_attempts || 0) + 1;
+    this.deliveryBoys[idx].failed_login_attempts = fails;
+
+    if (fails >= 5) {
+      const lockoutMinutes = 15;
+      const lockedUntil = new Date(Date.now() + lockoutMinutes * 60 * 1000).toISOString();
+      this.deliveryBoys[idx].locked_until = lockedUntil;
+      return { locked: true, remainingAttempts: 0, lockedUntil };
+    }
+
+    return { locked: false, remainingAttempts: Math.max(0, 5 - fails) };
+  }
+
+  resetDeliveryBoyFailedAttempts(deliveryBoyId: string): void {
+    const idx = this.deliveryBoys.findIndex((b) => b.id === deliveryBoyId);
+    if (idx !== -1) {
+      this.deliveryBoys[idx].failed_login_attempts = 0;
+      this.deliveryBoys[idx].locked_until = null;
+    }
   }
 
   // SUBSCRIPTIONS

@@ -113,4 +113,16 @@ export const en: TranslationDictionary = {
   'lang.en': 'English',
   'lang.mr': 'मराठी',
   'lang.hi': 'हिन्दी',
+
+  // Authentication & Login
+  'auth.adminTab': 'Admin',
+  'auth.customerTab': 'Customer',
+  'auth.deliveryTab': 'Delivery Staff',
+  'auth.customerLoginId': 'Customer Login ID',
+  'auth.deliveryStaffId': 'Delivery Staff ID (e.g. D001)',
+  'auth.pinLabel': '4-Digit PIN',
+  'auth.showPin': 'Show PIN',
+  'auth.hidePin': 'Hide PIN',
+  'auth.forgotPin': 'Forgot PIN?',
+  'auth.signIn': 'Sign In',
 };

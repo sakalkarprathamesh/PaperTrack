@@ -113,4 +113,16 @@ export const mr: TranslationDictionary = {
   'lang.en': 'इंग्रजी (English)',
   'lang.mr': 'मराठी',
   'lang.hi': 'हिंदी (Hindi)',
+
+  // Authentication & Login
+  'auth.adminTab': 'ॲडमिन',
+  'auth.customerTab': 'ग्राहक',
+  'auth.deliveryTab': 'वितरण कर्मचारी',
+  'auth.customerLoginId': 'ग्राहक लॉगिन आयडी',
+  'auth.deliveryStaffId': 'वितरण कर्मचारी आयडी (उदा. D001)',
+  'auth.pinLabel': '४-अंकी पिन',
+  'auth.showPin': 'पिन दाखवा',
+  'auth.hidePin': 'पिन लपवा',
+  'auth.forgotPin': 'पिन विसरलात?',
+  'auth.signIn': 'साइन इन करा',
 };

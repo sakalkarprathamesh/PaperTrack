@@ -34,6 +34,7 @@ import { dataService } from '@/lib/data-service';
 import { Customer, Bill, Payment, DeliveryRecord, CustomerNote, SubscriptionPause } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatCurrency, formatDate, formatMonthYear } from '@/lib/utils';
+import { hashPin } from '@/lib/security';
 
 export default function CustomerProfilePage() {
   const params = useParams();
@@ -85,8 +86,11 @@ export default function CustomerProfilePage() {
   };
 
   const handleCreateLogin = () => {
-    const tempPass = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedPassword(tempPass);
+    const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
+    const pinHash = hashPin(tempPin);
+    dataService.updateCustomer(customerId, { pin_hash: pinHash });
+    setCustomer(dataService.getCustomerById(customerId));
+    setGeneratedPassword(tempPin);
     setShowLoginModal(true);
   };
 
@@ -861,20 +865,20 @@ export default function CustomerProfilePage() {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Login URL:</span>
-                <span className="font-mono font-semibold text-slate-800">papertrack.com/login</span>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500">Portal Login URL:</span>
+                <span className="font-mono font-semibold text-slate-800">/login (Customer tab)</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
                 <span className="text-slate-500">Customer Login ID:</span>
-                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                  {customer.phone.replace(/[^0-9]/g, '')}
+                <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded border border-slate-200 text-sm">
+                  {customer.login_id || customer.phone.replace(/[^0-9]/g, '')}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">One-Time Password:</span>
-                <span className="font-mono font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">
+              <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
+                <span className="text-slate-500">New 4-Digit PIN:</span>
+                <span className="font-mono font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded border border-red-200 text-sm">
                   {generatedPassword}
                 </span>
               </div>
@@ -882,6 +886,7 @@ export default function CustomerProfilePage() {
 
             <p className="text-[11px] text-slate-500">
               The customer can securely view their bills, receipts, payment history, and Lokmat delivery status on their phone.
+              This 4-digit PIN has been cryptographically hashed with scrypt and will not be displayed again.
             </p>
 
             <div className="flex justify-end pt-2">

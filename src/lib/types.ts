@@ -23,6 +23,12 @@ export interface DeliveryBoy {
   phone: string;
   area: string;
   is_active: boolean;
+  login_id?: string;
+  pin_hash?: string;
+  login_enabled?: boolean;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+  pin_updated_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -40,6 +46,12 @@ export interface Customer {
   end_date?: string | null;
   notes?: string | null;
   advance_balance: number;
+  login_id?: string;
+  pin_hash?: string;
+  login_enabled?: boolean;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+  pin_updated_at?: string;
   created_at?: string;
   updated_at?: string;
   // Joined fields
