@@ -867,9 +867,9 @@ export default function CustomerProfilePage() {
                 <span className="font-mono font-semibold text-slate-800">papertrack.com/login</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Email:</span>
-                <span className="font-mono font-semibold text-slate-800">
-                  {customer.phone.replace(/[^0-9]/g, '')}@papertrack.com
+                <span className="text-slate-500">Customer Login ID:</span>
+                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                  {customer.phone.replace(/[^0-9]/g, '')}
                 </span>
               </div>
               <div className="flex justify-between">
