@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { dataService } from '@/lib/data-service';
 import { CustomerStatus } from '@/lib/types';
-import { hashPin, validatePin, validateCustomerLoginId } from '@/lib/security';
+import { hashPin, validatePin, validateCustomerMobileNumber } from '@/lib/security';
 import { formatDate } from '@/lib/utils';
 
 export default function EditCustomerPage() {
@@ -28,6 +28,12 @@ export default function EditCustomerPage() {
   const customerId = params.id as string;
 
   const deliveryBoys = dataService.getDeliveryBoys();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [pinSuccessMessage, setPinSuccessMessage] = useState('');
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -40,33 +46,28 @@ export default function EditCustomerPage() {
     login_enabled: true,
   });
 
-  const [pinUpdatedAt, setPinUpdatedAt] = useState<string | null>(null);
-
-  // New PIN reset section state
+  // PIN reset state
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [showNewPin, setShowNewPin] = useState(false);
-  const [pinSuccessMessage, setPinSuccessMessage] = useState('');
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pinUpdatedAt, setPinUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    const cust = dataService.getCustomerById(customerId);
-    if (cust) {
+    const customer = dataService.getCustomerById(customerId);
+    if (customer) {
+      const cleanPhoneDigits = (customer.phone || '').replace(/\D/g, '').slice(-10);
       setFormData({
-        name: cust.name,
-        phone: cust.phone,
-        address: cust.address,
-        area: cust.area,
-        delivery_boy_id: cust.delivery_boy_id || '',
-        status: cust.status,
-        notes: cust.notes || '',
-        login_id: cust.login_id || cust.phone.replace(/[^0-9]/g, ''),
-        login_enabled: cust.login_enabled !== undefined ? cust.login_enabled : true,
+        name: customer.name,
+        phone: cleanPhoneDigits || customer.phone || '',
+        address: customer.address,
+        area: customer.area,
+        delivery_boy_id: customer.delivery_boy_id || '',
+        status: customer.status,
+        notes: customer.notes || '',
+        login_id: customer.login_id || cleanPhoneDigits || '',
+        login_enabled: customer.login_enabled !== undefined ? customer.login_enabled : true,
       });
-      setPinUpdatedAt(cust.pin_updated_at || null);
+      setPinUpdatedAt(customer.pin_updated_at || null);
     }
     setIsLoading(false);
   }, [customerId]);
@@ -86,30 +87,25 @@ export default function EditCustomerPage() {
       setError('Customer name is required.');
       return;
     }
-    if (!formData.phone.trim()) {
-      setError('Phone number is required.');
+
+    const cleanMobile = formData.phone.trim().replace(/\D/g, '');
+    const mobileCheck = validateCustomerMobileNumber(cleanMobile);
+    if (!mobileCheck.valid) {
+      setError('Enter a valid 10-digit mobile number.');
       return;
     }
-
-    const cleanLoginId = formData.login_id.trim();
-    if (cleanLoginId) {
-      const idCheck = validateCustomerLoginId(cleanLoginId);
-      if (!idCheck.valid) {
-        setError(idCheck.error || 'Customer Login ID must contain numeric digits only.');
-        return;
-      }
-    }
+    const mobile10 = mobileCheck.normalized!;
 
     // Check if new PIN was entered
     let updatedPinHash: string | undefined;
     if (newPin.trim()) {
       const pinCheck = validatePin(newPin);
       if (!pinCheck.valid) {
-        setError(pinCheck.error || 'PIN must be exactly 4 numeric digits.');
+        setError('Password must contain exactly 4 digits.');
         return;
       }
       if (newPin.trim() !== confirmPin.trim()) {
-        setError('New PIN and Confirm PIN do not match.');
+        setError('New password and confirm password do not match.');
         return;
       }
       updatedPinHash = hashPin(newPin.trim());
@@ -119,13 +115,13 @@ export default function EditCustomerPage() {
     try {
       const updates: any = {
         name: formData.name.trim(),
-        phone: formData.phone.trim(),
+        phone: mobile10,
         address: formData.address.trim(),
         area: formData.area.trim(),
         delivery_boy_id: formData.delivery_boy_id || null,
         status: formData.status,
         notes: formData.notes.trim() || null,
-        login_id: cleanLoginId || undefined,
+        login_id: mobile10,
         login_enabled: formData.login_enabled,
       };
 
@@ -136,7 +132,7 @@ export default function EditCustomerPage() {
       dataService.updateCustomer(customerId, updates);
 
       if (newPin.trim()) {
-        setPinSuccessMessage(`New 4-digit PIN (${newPin.trim()}) updated and hashed successfully! Share this with the customer.`);
+        setPinSuccessMessage(`New 4-digit password (${newPin.trim()}) updated successfully! Share this with the customer for /customer-login.`);
         setNewPin('');
         setConfirmPin('');
         setPinUpdatedAt(new Date().toISOString());
@@ -207,18 +203,30 @@ export default function EditCustomerPage() {
             {/* Phone */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Mobile Number *
+                Customer Mobile Number *
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <span className="text-xs font-semibold text-slate-400">+91</span>
+                </div>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   required
+                  placeholder="e.g. 9822111001"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700"
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setFormData({ ...formData, phone: digits, login_id: digits });
+                  }}
+                  className="w-full pl-12 pr-3 py-2 text-xs font-mono rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700"
                 />
               </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Exactly 10 digits. Used as customer Login ID.
+              </p>
             </div>
 
             {/* Address */}
@@ -289,7 +297,7 @@ export default function EditCustomerPage() {
           </div>
 
           {/* ====================================================== */}
-          {/* CUSTOMER PORTAL CREDENTIALS & PIN MANAGEMENT           */}
+          {/* CUSTOMER LOGIN CREDENTIALS & PASSWORD MANAGEMENT       */}
           {/* ====================================================== */}
           <div className="pt-5 border-t border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
@@ -298,9 +306,9 @@ export default function EditCustomerPage() {
                   <KeyRound className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">Customer Portal Login & Credentials</h3>
+                  <h3 className="text-xs font-bold text-slate-900">Customer Login Credentials</h3>
                   <p className="text-[11px] text-slate-500">
-                    Manage subscriber numeric Login ID, active login status, and 4-digit PIN.
+                    Manage subscriber 10-digit mobile Login ID, active portal access, and 4-digit password.
                   </p>
                 </div>
               </div>
@@ -308,35 +316,45 @@ export default function EditCustomerPage() {
               {pinUpdatedAt && (
                 <span className="text-[11px] text-slate-500 flex items-center gap-1 font-mono">
                   <Clock className="w-3 h-3 text-slate-400" />
-                  <span>PIN updated: {formatDate(pinUpdatedAt)}</span>
+                  <span>Password updated: {formatDate(pinUpdatedAt)}</span>
                 </span>
               )}
             </div>
 
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+              <div className="p-3 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Login ID:</span>
+                  <span className="font-mono font-bold text-slate-900">{formData.phone || '10-digit mobile number'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-semibold">Password:</span>
+                  <span className="font-mono font-bold text-red-700">•••• (4-digit customer password)</span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Numeric Login ID */}
+                {/* 10-Digit Mobile Login ID */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Customer Login ID (Digits Only)
+                    Login ID: 10-Digit Mobile Number
                   </label>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    value={formData.login_id}
-                    onChange={(e) => setFormData({ ...formData, login_id: e.target.value.replace(/[^0-9]/g, '') })}
-                    placeholder="e.g. 12345 or phone digits"
-                    className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700"
+                    readOnly
+                    placeholder="10-digit mobile number"
+                    value={formData.phone}
+                    className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-slate-200 bg-slate-100 text-slate-700 cursor-not-allowed"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Subscriber uses this ID on the customer login tab.
+                    Subscriber uses this 10-digit mobile number to log in.
                   </p>
                 </div>
 
                 {/* Login Enabled Toggle */}
                 <div className="flex flex-col justify-center">
                   <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    Portal Login Status
+                    Portal Login Access
                   </label>
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
@@ -346,18 +364,18 @@ export default function EditCustomerPage() {
                       className="rounded border-slate-300 text-red-700 focus:ring-red-700"
                     />
                     <span className="text-xs font-medium text-slate-700">
-                      Allow customer to log in to the portal
+                      Allow customer to log in to customer portal
                     </span>
                   </label>
                 </div>
               </div>
 
-              {/* Set / Reset PIN Section */}
+              {/* Set / Reset Password Section */}
               <div className="pt-3 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Reset / Set New 4-Digit PIN</span>
+                    <span>Change Customer 4-Digit Password</span>
                   </span>
                   <button
                     type="button"
@@ -365,14 +383,14 @@ export default function EditCustomerPage() {
                     className="inline-flex items-center gap-1 text-[11px] text-red-700 hover:text-red-800 font-semibold"
                   >
                     <Sparkles className="w-3 h-3" />
-                    <span>Generate Random PIN</span>
+                    <span>Generate Random Password</span>
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      New 4-Digit PIN
+                      New 4-Digit Password
                     </label>
                     <div className="relative">
                       <input
@@ -389,6 +407,7 @@ export default function EditCustomerPage() {
                         type="button"
                         onClick={() => setShowNewPin(!showNewPin)}
                         tabIndex={-1}
+                        aria-label={showNewPin ? 'Hide password' : 'Show password'}
                         className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
                       >
                         {showNewPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -398,14 +417,14 @@ export default function EditCustomerPage() {
 
                   <div>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Confirm New 4-Digit PIN
+                      Confirm New 4-Digit Password
                     </label>
                     <input
                       type={showNewPin ? 'text' : 'password'}
                       inputMode="numeric"
                       pattern="[0-9]*"
                       maxLength={4}
-                      placeholder="Re-enter 4-digit PIN"
+                      placeholder="Re-enter 4-digit password"
                       value={confirmPin}
                       onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
                       className="w-full px-3 py-1.5 text-xs font-mono tracking-widest rounded-lg border border-slate-300 focus:outline-none focus:border-red-700"
@@ -414,7 +433,7 @@ export default function EditCustomerPage() {
                 </div>
 
                 <p className="text-[10px] text-slate-400 mt-2">
-                  Stored PINs are never displayed in readable form and are cryptographically hashed using scrypt.
+                  Stored passwords are never displayed in readable form and are cryptographically hashed using scrypt.
                 </p>
               </div>
             </div>

@@ -20,7 +20,8 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { validatePin, validateCustomerLoginId, validateDeliveryBoyId } from '@/lib/security';
+import { validatePin, validateCustomerMobileNumber, validateDeliveryBoyId } from '@/lib/security';
+import { PublicHeader } from '@/components/layout/PublicHeader';
 
 type LoginMode = 'admin' | 'customer' | 'delivery_boy';
 
@@ -29,9 +30,27 @@ const LOCKOUT_SECONDS = 30;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isConfigured } = useAuth();
+  const { user, login, isConfigured } = useAuth();
 
   const [mode, setMode] = useState<LoginMode>('admin');
+
+  // Check URL params for mode and redirect if already logged in
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const m = params.get('mode') || params.get('role');
+      if (m === 'customer') setMode('customer');
+      else if (m === 'delivery' || m === 'delivery_boy') setMode('delivery_boy');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'ADMIN') router.push('/admin/dashboard');
+      else if (user.role === 'CUSTOMER') router.push('/customer/dashboard');
+      else if (user.role === 'DELIVERY_BOY') router.push('/delivery/today');
+    }
+  }, [user, router]);
 
   // Admin form state
   const [adminEmail, setAdminEmail] = useState('');
@@ -112,24 +131,24 @@ export default function LoginPage() {
     if (lockoutTimer > 0) return;
     setError('');
 
-    const cleanId = customerLoginId.trim();
+    const cleanMobile = customerLoginId.trim().replace(/\D/g, '');
     const cleanPin = customerPin.trim();
 
-    const idCheck = validateCustomerLoginId(cleanId);
-    if (!idCheck.valid) {
-      setError(idCheck.error || 'Customer Login ID must contain numeric digits only.');
+    const mobileCheck = validateCustomerMobileNumber(cleanMobile);
+    if (!mobileCheck.valid) {
+      setError('Enter a valid 10-digit mobile number.');
       return;
     }
 
     const pinCheck = validatePin(cleanPin);
     if (!pinCheck.valid) {
-      setError(pinCheck.error || 'PIN must be exactly 4 numeric digits.');
+      setError('Password must contain exactly 4 digits.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await login(cleanId, cleanPin, 'customer');
+      const result = await login(mobileCheck.normalized!, cleanPin, 'customer');
       if (result.success) {
         setFailedAttempts(0);
         router.push('/customer/dashboard');
@@ -142,7 +161,7 @@ export default function LoginPage() {
         setLockoutTimer(LOCKOUT_SECONDS);
         setError(`Too many failed login attempts. For security, please wait ${LOCKOUT_SECONDS} seconds before trying again.`);
       } else {
-        setError(err.message || 'Invalid Login ID or PIN.');
+        setError(err.message || 'Invalid mobile number or password.');
       }
       setIsLoading(false);
     }
@@ -192,7 +211,9 @@ export default function LoginPage() {
   const isLocked = lockoutTimer > 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <PublicHeader />
+      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-700 text-white shadow-lg mb-4 ring-4 ring-red-100">
@@ -356,42 +377,37 @@ export default function LoginPage() {
           {mode === 'customer' && (
             <form onSubmit={handleCustomerSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Customer Login ID
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  10-Digit Mobile Number
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="text-xs font-semibold text-slate-400">+91</span>
+                  </div>
                   <input
-                    type="text"
+                    type="tel"
                     inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     required
                     disabled={isLocked || isLoading}
-                    placeholder="Enter numeric Login ID (e.g. 12345)"
+                    placeholder="Enter your registered mobile number"
                     value={customerLoginId}
-                    onChange={(e) => setCustomerLoginId(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 font-mono focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
+                    onChange={(e) => setCustomerLoginId(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+                    className="w-full pl-12 pr-3 py-2 text-xs font-mono rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Numeric digits only. Provided during customer registration.
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Example: 9822111001 (10 digits, numbers only)
                 </p>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    4-Digit PIN
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowHelpModal(true)}
-                    className="text-[11px] text-red-700 hover:underline font-semibold"
-                  >
-                    Forgot PIN?
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  4-Digit Password
+                </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type={showCustomerPin ? 'text' : 'password'}
                     inputMode="numeric"
@@ -399,7 +415,7 @@ export default function LoginPage() {
                     maxLength={4}
                     required
                     disabled={isLocked || isLoading}
-                    placeholder="••••"
+                    placeholder="Enter your 4-digit password"
                     value={customerPin}
                     onChange={(e) => setCustomerPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
                     className="w-full pl-9 pr-10 py-2 text-xs rounded-lg border border-slate-300 font-mono tracking-widest text-center focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"
@@ -408,12 +424,15 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowCustomerPin(!showCustomerPin)}
                     tabIndex={-1}
-                    aria-label={showCustomerPin ? 'Hide PIN' : 'Show PIN'}
+                    aria-label={showCustomerPin ? 'Hide password' : 'Show password'}
                     className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
                   >
                     {showCustomerPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Exactly 4 numeric digits. Masked by default.
+                </p>
               </div>
 
               <button
@@ -428,11 +447,17 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    <span>Sign In to Customer Portal</span>
+                    <span>Login as Customer</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
+
+              <div className="pt-3 border-t border-slate-100 text-center">
+                <p className="text-[11px] text-slate-500">
+                  Use the mobile number and 4-digit password provided by the Admin.
+                </p>
+              </div>
             </form>
           )}
 
@@ -563,6 +588,7 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

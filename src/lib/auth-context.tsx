@@ -31,7 +31,7 @@ export const DEMO_USERS: Record<string, AuthUser> = {
   },
   customer: {
     id: 'c0000000-0000-0000-0000-000000000001',
-    email: '919822111001@papertrack.com',
+    email: '9822111001@papertrack.com',
     fullName: 'Anand Kulkarni (Customer)',
     role: 'CUSTOMER',
     customerId: '10000000-0000-0000-0000-000000000001',
@@ -254,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = await res.json().catch(() => ({}));
 
           if (!res.ok) {
-            throw new Error(data.error || 'Invalid Login ID or PIN.');
+            throw new Error(data.error || (mode === 'customer' ? 'Invalid mobile number or password.' : 'Invalid Login ID or PIN.'));
           }
 
           if (data.user) {
@@ -278,10 +278,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const cust = dataService.getCustomerByLoginId(cleanIdentifier);
             if (!cust || !verifyPin(cleanSecret, cust.pin_hash)) {
               if (cust) dataService.recordFailedCustomerLogin(cust.id);
-              throw new Error('Invalid Login ID or PIN.');
+              throw new Error('Invalid mobile number or password.');
             }
-            if (cust.login_enabled === false) {
-              throw new Error('Account portal login is disabled. Please contact Admin.');
+            if (cust.login_enabled === false || cust.status === 'CANCELLED') {
+              throw new Error('Your account is currently inactive. Please contact the Admin.');
             }
             dataService.resetCustomerFailedAttempts(cust.id);
             const authUser: AuthUser = {

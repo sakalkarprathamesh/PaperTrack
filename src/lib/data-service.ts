@@ -269,8 +269,24 @@ class DataStore {
   }
 
   createCustomer(data: Omit<Customer, 'id' | 'created_at' | 'updated_at'> & { initial_daily_rate?: number }) {
-    if (data.login_id) {
-      const cleanLoginId = data.login_id.trim();
+    const mobileDigits = (data.phone || '').replace(/\D/g, '');
+    const mobile10 = mobileDigits.length >= 10 ? mobileDigits.slice(-10) : '';
+
+    if (mobile10) {
+      const existingPhone = this.customers.find((c) => {
+        const cPhone10 = (c.phone || '').replace(/\D/g, '').slice(-10);
+        const cLogin10 = (c.login_id || '').replace(/\D/g, '').slice(-10);
+        return cPhone10 === mobile10 || cLogin10 === mobile10;
+      });
+      if (existingPhone) {
+        throw new Error('Customer mobile number is already registered to another subscriber');
+      }
+    }
+
+    const assignedLoginId = data.login_id ? data.login_id.trim() : (mobile10 || undefined);
+
+    if (assignedLoginId) {
+      const cleanLoginId = assignedLoginId.trim();
       const existing = this.customers.find((c) => c.login_id === cleanLoginId);
       if (existing) {
         throw new Error('Customer Login ID is already in use by another subscriber');
@@ -281,7 +297,7 @@ class DataStore {
     const newCustomer: Customer = {
       ...data,
       id,
-      login_id: data.login_id ? data.login_id.trim() : undefined,
+      login_id: assignedLoginId,
       pin_hash: data.pin_hash,
       login_enabled: data.login_enabled !== undefined ? data.login_enabled : true,
       failed_login_attempts: 0,
@@ -324,6 +340,25 @@ class DataStore {
     const idx = this.customers.findIndex((c) => c.id === id);
     if (idx === -1) throw new Error('Customer not found');
 
+    if (updates.phone) {
+      const mobileDigits = updates.phone.replace(/\D/g, '');
+      const mobile10 = mobileDigits.length >= 10 ? mobileDigits.slice(-10) : '';
+      if (mobile10) {
+        const existingPhone = this.customers.find((c) => {
+          if (c.id === id) return false;
+          const cPhone10 = (c.phone || '').replace(/\D/g, '').slice(-10);
+          const cLogin10 = (c.login_id || '').replace(/\D/g, '').slice(-10);
+          return cPhone10 === mobile10 || cLogin10 === mobile10;
+        });
+        if (existingPhone) {
+          throw new Error('Customer mobile number is already registered to another subscriber');
+        }
+        if (!updates.login_id) {
+          updates.login_id = mobile10;
+        }
+      }
+    }
+
     if (updates.login_id) {
       const cleanLoginId = updates.login_id.trim();
       const existing = this.customers.find((c) => c.login_id === cleanLoginId && c.id !== id);
@@ -357,8 +392,29 @@ class DataStore {
   }
 
   getCustomerByLoginId(loginId: string): Customer | null {
+    if (!loginId) return null;
     const clean = loginId.trim();
-    return this.customers.find((c) => c.login_id === clean) || null;
+    const cleanDigits = clean.replace(/\D/g, '');
+    const clean10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+
+    return this.customers.find((c) => {
+      // 1. Direct login_id match
+      if (c.login_id === clean || c.login_id === cleanDigits) return true;
+
+      // 2. 10-digit mobile match against login_id or phone
+      if (clean10 && clean10.length === 10) {
+        if (c.login_id) {
+          const cLoginDigits = c.login_id.replace(/\D/g, '');
+          if (cLoginDigits.endsWith(clean10)) return true;
+        }
+        if (c.phone) {
+          const cPhoneDigits = c.phone.replace(/\D/g, '');
+          if (cPhoneDigits.endsWith(clean10)) return true;
+        }
+      }
+
+      return false;
+    }) || null;
   }
 
   recordFailedCustomerLogin(customerId: string): { locked: boolean; remainingAttempts: number; lockedUntil?: string } {

@@ -868,16 +868,16 @@ export default function CustomerProfilePage() {
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
               <div className="flex justify-between items-center py-0.5">
                 <span className="text-slate-500">Portal Login URL:</span>
-                <span className="font-mono font-semibold text-slate-800">/login (Customer tab)</span>
+                <span className="font-mono font-semibold text-slate-800">/customer-login</span>
               </div>
               <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
-                <span className="text-slate-500">Customer Login ID:</span>
+                <span className="text-slate-500">Login ID (10-Digit Mobile):</span>
                 <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded border border-slate-200 text-sm">
-                  {customer.login_id || customer.phone.replace(/[^0-9]/g, '')}
+                  {customer.login_id || customer.phone.replace(/\D/g, '').slice(-10)}
                 </span>
               </div>
               <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
-                <span className="text-slate-500">New 4-Digit PIN:</span>
+                <span className="text-slate-500">New 4-Digit Password:</span>
                 <span className="font-mono font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded border border-red-200 text-sm">
                   {generatedPassword}
                 </span>

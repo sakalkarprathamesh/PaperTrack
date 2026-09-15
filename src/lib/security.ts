@@ -1,34 +1,55 @@
 import crypto from 'crypto';
 
 /**
- * Validates that a PIN consists of exactly 4 numeric digits.
+ * Validates that a customer password / PIN consists of exactly 4 numeric digits.
  */
 export function validatePin(pin: string): { valid: boolean; error?: string } {
   if (!pin || typeof pin !== 'string') {
-    return { valid: false, error: 'PIN is required' };
+    return { valid: false, error: 'Password must contain exactly 4 digits.' };
   }
   const clean = pin.trim();
   if (!/^\d{4}$/.test(clean)) {
-    return { valid: false, error: 'PIN must be exactly 4 numeric digits' };
+    return { valid: false, error: 'Password must contain exactly 4 digits.' };
   }
   return { valid: true };
 }
 
 /**
- * Validates that a Customer Login ID consists of numeric digits only.
+ * Validates that a Customer mobile number consists of exactly 10 numeric digits.
+ * Normalizes input by stripping formatting, spaces, and leading +91 / 91 country code.
  */
-export function validateCustomerLoginId(id: string): { valid: boolean; error?: string } {
+export function validateCustomerMobileNumber(mobile: string): { valid: boolean; normalized?: string; error?: string } {
+  if (!mobile || typeof mobile !== 'string') {
+    return { valid: false, error: 'Enter a valid 10-digit mobile number.' };
+  }
+  const digits = mobile.trim().replace(/\D/g, '');
+  const normalized = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+
+  if (!/^\d{10}$/.test(normalized)) {
+    return { valid: false, error: 'Enter a valid 10-digit mobile number.' };
+  }
+  return { valid: true, normalized };
+}
+
+/**
+ * Validates that a Customer Login ID consists of numeric digits only (standard: 10-digit mobile).
+ */
+export function validateCustomerLoginId(id: string): { valid: boolean; normalized?: string; error?: string } {
   if (!id || typeof id !== 'string') {
-    return { valid: false, error: 'Customer Login ID is required' };
+    return { valid: false, error: 'Enter a valid 10-digit mobile number.' };
   }
-  const clean = id.trim();
-  if (!/^\d+$/.test(clean)) {
-    return { valid: false, error: 'Customer Login ID must contain digits only' };
+  const raw = id.trim();
+  if (!/^\d+$/.test(raw)) {
+    return { valid: false, error: 'Enter a valid 10-digit mobile number.' };
   }
-  if (clean.length < 3 || clean.length > 15) {
-    return { valid: false, error: 'Customer Login ID must be between 3 and 15 digits' };
+  const normalized = raw.length === 12 && raw.startsWith('91') ? raw.slice(2) : raw;
+  if (!/^\d{10}$/.test(normalized)) {
+    // If not exactly 10 digits, allow 3-15 for backward compatibility with legacy custom numeric IDs
+    if (raw.length < 3 || raw.length > 15) {
+      return { valid: false, error: 'Enter a valid 10-digit mobile number.' };
+    }
   }
-  return { valid: true };
+  return { valid: true, normalized };
 }
 
 /**

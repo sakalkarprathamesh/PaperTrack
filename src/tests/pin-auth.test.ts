@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   validatePin,
+  validateCustomerMobileNumber,
   validateCustomerLoginId,
   validateDeliveryBoyId,
   hashPin,
@@ -23,26 +24,69 @@ describe('PaperTrack — Customer & Delivery Boy PIN Authentication Suite', () =
       expect(validatePin(' 7941 ').valid).toBe(true);
     });
 
-    it('rejects PINs that are not exactly 4 digits or contain letters/symbols', () => {
-      expect(validatePin('123').valid).toBe(false);
-      expect(validatePin('12345').valid).toBe(false);
+    it('rejects PINs that are not exactly 4 digits or contain letters/symbols with exact error message', () => {
+      const res1 = validatePin('123');
+      expect(res1.valid).toBe(false);
+      expect(res1.error).toBe('Password must contain exactly 4 digits.');
+
+      const res2 = validatePin('12345');
+      expect(res2.valid).toBe(false);
+      expect(res2.error).toBe('Password must contain exactly 4 digits.');
+
       expect(validatePin('abcd').valid).toBe(false);
       expect(validatePin('12a4').valid).toBe(false);
       expect(validatePin('12-4').valid).toBe(false);
       expect(validatePin('').valid).toBe(false);
     });
 
+    it('validates and normalizes 10-digit customer mobile numbers', () => {
+      const res1 = validateCustomerMobileNumber('9822111001');
+      expect(res1.valid).toBe(true);
+      expect(res1.normalized).toBe('9822111001');
+
+      // Strips spaces and dashes
+      const res2 = validateCustomerMobileNumber('9822-111-001');
+      expect(res2.valid).toBe(true);
+      expect(res2.normalized).toBe('9822111001');
+
+      // Strips country code 91 from 12-digit format
+      const res3 = validateCustomerMobileNumber('+91 9822111001');
+      expect(res3.valid).toBe(true);
+      expect(res3.normalized).toBe('9822111001');
+
+      const res4 = validateCustomerMobileNumber('919822111001');
+      expect(res4.valid).toBe(true);
+      expect(res4.normalized).toBe('9822111001');
+    });
+
+    it('rejects invalid customer mobile numbers with exact error message', () => {
+      const res1 = validateCustomerMobileNumber('982211100'); // 9 digits
+      expect(res1.valid).toBe(false);
+      expect(res1.error).toBe('Enter a valid 10-digit mobile number.');
+
+      const res2 = validateCustomerMobileNumber('982211100199'); // too many digits
+      expect(res2.valid).toBe(false);
+      expect(res2.error).toBe('Enter a valid 10-digit mobile number.');
+
+      const res3 = validateCustomerMobileNumber('user@papertrack.com'); // email
+      expect(res3.valid).toBe(false);
+      expect(res3.error).toBe('Enter a valid 10-digit mobile number.');
+
+      const res4 = validateCustomerMobileNumber('');
+      expect(res4.valid).toBe(false);
+      expect(res4.error).toBe('Enter a valid 10-digit mobile number.');
+    });
+
     it('accepts valid Customer Login IDs with digits only', () => {
-      expect(validateCustomerLoginId('12345').valid).toBe(true);
+      expect(validateCustomerLoginId('9822111001').valid).toBe(true);
       expect(validateCustomerLoginId('919822111001').valid).toBe(true);
-      expect(validateCustomerLoginId('1001').valid).toBe(true);
+      expect(validateCustomerLoginId('12345').valid).toBe(true);
     });
 
     it('rejects Customer Login IDs containing letters, spaces, or symbols', () => {
       expect(validateCustomerLoginId('cust123').valid).toBe(false);
       expect(validateCustomerLoginId('user@papertrack.com').valid).toBe(false);
-      expect(validateCustomerLoginId('12 34').valid).toBe(false);
-      expect(validateCustomerLoginId('12').valid).toBe(false); // Too short (< 3 digits)
+      expect(validateCustomerLoginId('12').valid).toBe(false);
       expect(validateCustomerLoginId('').valid).toBe(false);
     });
 
@@ -127,33 +171,43 @@ describe('PaperTrack — Customer & Delivery Boy PIN Authentication Suite', () =
       expect(verifyPin(pin, customer.pin_hash)).toBe(true);
     });
 
-    it('prevents duplicate customer Login IDs', () => {
-      const duplicateId = '88888888';
+    it('prevents duplicate customer mobile numbers and Login IDs', () => {
+      const mobile = '9822888881';
       dataService.createCustomer({
         name: 'User A',
-        phone: '+91 9822888881',
+        phone: mobile,
         address: 'Address A',
         area: 'Shivaji Nagar',
         status: 'ACTIVE',
         start_date: '2026-09-01',
         advance_balance: 0,
-        login_id: duplicateId,
+        login_id: mobile,
         pin_hash: hashPin('1111'),
       });
 
       expect(() => {
         dataService.createCustomer({
           name: 'User B',
-          phone: '+91 9822888882',
+          phone: mobile,
           address: 'Address B',
           area: 'Shivaji Nagar',
           status: 'ACTIVE',
           start_date: '2026-09-01',
           advance_balance: 0,
-          login_id: duplicateId,
+          login_id: mobile,
           pin_hash: hashPin('2222'),
         });
-      }).toThrow('Customer Login ID is already in use');
+      }).toThrow(/already registered|already in use/);
+    });
+
+    it('finds customer by 10-digit mobile number or legacy format', () => {
+      const anand = dataService.getCustomerByLoginId('9822111001');
+      expect(anand).toBeDefined();
+      expect(anand?.name).toBe('Anand Kulkarni');
+
+      const byLegacy = dataService.getCustomerByLoginId('919822111001');
+      expect(byLegacy).toBeDefined();
+      expect(byLegacy?.name).toBe('Anand Kulkarni');
     });
 
     it('admin resets customer PIN securely', () => {

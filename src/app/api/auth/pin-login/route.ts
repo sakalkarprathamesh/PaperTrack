@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validatePin, validateCustomerLoginId, validateDeliveryBoyId, verifyPin } from '@/lib/security';
+import { validatePin, validateCustomerMobileNumber, validateDeliveryBoyId, verifyPin } from '@/lib/security';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { dataService } from '@/lib/data-service';
 import { UserRole } from '@/lib/types';
@@ -20,21 +20,21 @@ export async function POST(request: NextRequest) {
     const pinCheck = validatePin(pin);
     if (!pinCheck.valid) {
       return NextResponse.json(
-        { error: pinCheck.error || 'PIN must be exactly 4 numeric digits.' },
+        { error: pinCheck.error || 'Password must contain exactly 4 digits.' },
         { status: 400 }
       );
     }
 
     let normalizedLoginId = '';
     if (mode === 'customer') {
-      const idCheck = validateCustomerLoginId(loginId);
+      const idCheck = validateCustomerMobileNumber(loginId);
       if (!idCheck.valid) {
         return NextResponse.json(
-          { error: idCheck.error || 'Customer Login ID must contain numeric digits only.' },
+          { error: idCheck.error || 'Enter a valid 10-digit mobile number.' },
           { status: 400 }
         );
       }
-      normalizedLoginId = loginId.trim();
+      normalizedLoginId = idCheck.normalized!;
     } else {
       const dboyCheck = validateDeliveryBoyId(loginId);
       if (!dboyCheck.valid) {
@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
       if (mode === 'customer') {
         const { data, error } = await adminSupabase
           .from('customers')
-          .select('id, name, phone, login_id, pin_hash, login_enabled, failed_login_attempts, locked_until, profile_id')
-          .eq('login_id', normalizedLoginId)
+          .select('id, name, phone, login_id, pin_hash, login_enabled, failed_login_attempts, locked_until, profile_id, status')
+          .or(`login_id.eq.${normalizedLoginId},login_id.eq.91${normalizedLoginId},phone.ilike.%${normalizedLoginId}%`)
           .maybeSingle();
 
         if (!error && data) {
@@ -100,10 +100,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Check Disabled Status
-    if (account && account.login_enabled === false) {
+    // 4. Check Inactive / Disabled Status
+    if (account && (account.login_enabled === false || (mode === 'customer' && account.status === 'CANCELLED'))) {
       return NextResponse.json(
-        { error: 'Account portal login is disabled. Please contact Admin.' },
+        { error: 'Your account is currently inactive. Please contact the Admin.' },
         { status: 403 }
       );
     }
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
 
       // Generic error message: never leak whether Login ID exists
       return NextResponse.json(
-        { error: 'Invalid Login ID or PIN.' },
+        { error: mode === 'customer' ? 'Invalid mobile number or password.' : 'Invalid Login ID or PIN.' },
         { status: 401 }
       );
     }
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (err: any) {
     return NextResponse.json(
-      { error: 'Authentication service temporarily unavailable. Please try again.' },
+      { error: 'Unable to sign in right now. Please try again.' },
       { status: 500 }
     );
   }
