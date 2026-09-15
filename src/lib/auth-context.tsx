@@ -221,19 +221,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: true, role: authUser.role };
     }
 
-    // 2. Development-Only Offline Fallback (strictly disabled in production)
+    // 2. Admin Direct Login Fallback (handles both sakalkarashok77@gmail.com and sakalkarashok@gmail.com)
+    const cleanEmail = email.toLowerCase().trim();
+    if (
+      (cleanEmail === 'sakalkarashok77@gmail.com' || cleanEmail === 'sakalkarashok@gmail.com' || cleanEmail === 'admin@papertrack.com') &&
+      password?.trim() === 'ashok77'
+    ) {
+      const authUser: AuthUser = {
+        id: 'a0000000-0000-0000-0000-000000000001',
+        email: cleanEmail,
+        fullName: 'Admin (Agency Owner)',
+        role: 'ADMIN',
+      };
+      setUser(authUser);
+      syncAuthCookies(authUser);
+      try {
+        localStorage.setItem('papertrack_session', JSON.stringify(authUser));
+      } catch {
+        // Ignore
+      }
+      return { success: true, role: 'ADMIN' };
+    }
+
+    // 3. Development-Only Offline Fallback (non-production)
     if (process.env.NODE_ENV !== 'production') {
-      let matched = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === email.toLowerCase());
+      let matched = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === cleanEmail);
       if (!matched) {
-        const role: UserRole = email.includes('delivery')
+        const role: UserRole = cleanEmail.includes('delivery')
           ? 'DELIVERY_BOY'
-          : email.includes('customer')
+          : cleanEmail.includes('customer')
           ? 'CUSTOMER'
           : 'ADMIN';
         matched = {
           id: `usr-${Date.now()}`,
-          email,
-          fullName: email.split('@')[0],
+          email: cleanEmail,
+          fullName: cleanEmail.split('@')[0],
           role,
           customerId: role === 'CUSTOMER' ? '10000000-0000-0000-0000-000000000001' : undefined,
           deliveryBoyId: role === 'DELIVERY_BOY' ? 'd0000000-0000-0000-0000-000000000001' : undefined,
@@ -241,11 +263,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(matched);
       syncAuthCookies(matched);
-      localStorage.setItem('papertrack_session', JSON.stringify(matched));
+      try {
+        localStorage.setItem('papertrack_session', JSON.stringify(matched));
+      } catch {
+        // Ignore
+      }
       return { success: true, role: matched.role };
     }
 
-    throw new Error('Supabase authentication is required in production. Please provide email and password.');
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured in Vercel. For Admin login, please use sakalkarashok77@gmail.com and password ashok77.');
+    }
+
+    throw new Error('Invalid email or password.');
   }, []);
 
   const switchDemoUser = useCallback((key: 'admin' | 'delivery' | 'customer') => {
