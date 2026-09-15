@@ -91,7 +91,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   autoComplete="email"
-                  placeholder="admin@papertrack.com"
+                  placeholder="sakalkarashok77@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-red-700 focus:ring-2 focus:ring-red-700/20 transition-all shadow-xs"
@@ -163,7 +163,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    await login('admin@papertrack.com');
+                    await login('sakalkarashok77@gmail.com');
                     router.push('/admin/dashboard');
                   }}
                   className="px-2 py-1.5 bg-white border border-amber-300 rounded-lg text-slate-700 font-semibold text-[11px] hover:bg-amber-100"

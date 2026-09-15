@@ -17,7 +17,7 @@ export interface AuthUser {
 export const DEMO_USERS: Record<string, AuthUser> = {
   admin: {
     id: 'a0000000-0000-0000-0000-000000000001',
-    email: 'admin@papertrack.com',
+    email: 'sakalkarashok77@gmail.com',
     fullName: 'Admin (Agency Owner)',
     role: 'ADMIN',
   },
