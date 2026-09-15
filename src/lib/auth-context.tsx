@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserRole } from './types';
+import { createClient } from './supabase/client';
 
 export interface AuthUser {
   id: string;
@@ -12,7 +13,7 @@ export interface AuthUser {
   deliveryBoyId?: string;
 }
 
-// Preset demo accounts for quick testing of all three roles
+// Demo users are only exposed in non-production environments when explicitly enabled
 export const DEMO_USERS: Record<string, AuthUser> = {
   admin: {
     id: 'a0000000-0000-0000-0000-000000000001',
@@ -38,8 +39,8 @@ export const DEMO_USERS: Record<string, AuthUser> = {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, role?: UserRole) => Promise<boolean>;
-  logout: () => void;
+  login: (email: string, password?: string) => Promise<{ success: boolean; role: UserRole }>;
+  logout: () => Promise<void>;
   switchDemoUser: (key: 'admin' | 'delivery' | 'customer') => void;
   isLoading: boolean;
 }
@@ -57,59 +58,219 @@ function syncAuthCookies(authUser: AuthUser | null) {
   }
 }
 
+function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return Boolean(url && key && !url.includes('placeholder') && !key.includes('placeholder'));
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Initialize session from Supabase in production, or fallback to dev session
   useEffect(() => {
-    // Check saved session in localStorage/cookie for prototype persistence
-    const saved = localStorage.getItem('papertrack_session');
-    let currentUser: AuthUser = DEMO_USERS.admin;
-    if (saved) {
-      try {
-        currentUser = JSON.parse(saved);
-      } catch {
-        currentUser = DEMO_USERS.admin;
+    let isMounted = true;
+
+    async function initAuth() {
+      if (isSupabaseConfigured()) {
+        try {
+          const supabase = createClient();
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+
+          if (authUser && isMounted) {
+            // Fetch verified profile from database
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id, full_name, role, phone')
+              .eq('id', authUser.id)
+              .single();
+
+            if (profile) {
+              let customerId: string | undefined;
+              let deliveryBoyId: string | undefined;
+
+              if (profile.role === 'CUSTOMER') {
+                const { data: cust } = await supabase
+                  .from('customers')
+                  .select('id')
+                  .eq('profile_id', profile.id)
+                  .maybeSingle();
+                customerId = cust?.id;
+              } else if (profile.role === 'DELIVERY_BOY') {
+                const { data: staff } = await supabase
+                  .from('delivery_boys')
+                  .select('id')
+                  .eq('profile_id', profile.id)
+                  .maybeSingle();
+                deliveryBoyId = staff?.id;
+              }
+
+              const resolvedUser: AuthUser = {
+                id: profile.id,
+                email: authUser.email || '',
+                fullName: profile.full_name,
+                role: profile.role as UserRole,
+                customerId,
+                deliveryBoyId,
+              };
+
+              setUser(resolvedUser);
+              syncAuthCookies(resolvedUser);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // Fall through to unauthenticated
+        }
       }
+
+      // If in development mode and Supabase is not yet configured, check local dev session
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const saved = localStorage.getItem('papertrack_session');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setUser(parsed);
+            syncAuthCookies(parsed);
+            setIsLoading(false);
+            return;
+          }
+        } catch {
+          // Ignore local parse issues
+        }
+      }
+
+      // In production or when unauthenticated, default to null
+      setUser(null);
+      syncAuthCookies(null);
+      setIsLoading(false);
     }
-    setUser(currentUser);
-    syncAuthCookies(currentUser);
-    setIsLoading(false);
+
+    initAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const login = async (email: string, requestedRole?: UserRole): Promise<boolean> => {
-    // Find matching demo or create session
-    let matched = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (!matched) {
-      const role = requestedRole || (email.includes('delivery') ? 'DELIVERY_BOY' : email.includes('customer') ? 'CUSTOMER' : 'ADMIN');
-      matched = {
-        id: `usr-${Date.now()}`,
-        email,
-        fullName: email.split('@')[0],
-        role,
-        customerId: role === 'CUSTOMER' ? '10000000-0000-0000-0000-000000000001' : undefined,
-        deliveryBoyId: role === 'DELIVERY_BOY' ? 'd0000000-0000-0000-0000-000000000001' : undefined,
-      };
-    }
-    setUser(matched);
-    syncAuthCookies(matched);
-    localStorage.setItem('papertrack_session', JSON.stringify(matched));
-    return true;
-  };
+  const login = useCallback(async (email: string, password?: string): Promise<{ success: boolean; role: UserRole }> => {
+    // 1. Production Authentication via Supabase
+    if (isSupabaseConfigured() && password) {
+      const supabase = createClient();
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
 
-  const switchDemoUser = (key: 'admin' | 'delivery' | 'customer') => {
+      if (authError || !authData.user) {
+        throw new Error(authError?.message || 'Invalid email or password.');
+      }
+
+      // Fetch user profile from database
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, phone')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error('User profile not found. Please contact the agency administrator.');
+      }
+
+      let customerId: string | undefined;
+      let deliveryBoyId: string | undefined;
+
+      if (profile.role === 'CUSTOMER') {
+        const { data: cust } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('profile_id', profile.id)
+          .maybeSingle();
+        customerId = cust?.id;
+      } else if (profile.role === 'DELIVERY_BOY') {
+        const { data: staff } = await supabase
+          .from('delivery_boys')
+          .select('id')
+          .eq('profile_id', profile.id)
+          .maybeSingle();
+        deliveryBoyId = staff?.id;
+      }
+
+      const authUser: AuthUser = {
+        id: profile.id,
+        email: authData.user.email || email,
+        fullName: profile.full_name,
+        role: profile.role as UserRole,
+        customerId,
+        deliveryBoyId,
+      };
+
+      setUser(authUser);
+      syncAuthCookies(authUser);
+      return { success: true, role: authUser.role };
+    }
+
+    // 2. Development-Only Offline Fallback (strictly disabled in production)
+    if (process.env.NODE_ENV !== 'production') {
+      let matched = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === email.toLowerCase());
+      if (!matched) {
+        const role: UserRole = email.includes('delivery')
+          ? 'DELIVERY_BOY'
+          : email.includes('customer')
+          ? 'CUSTOMER'
+          : 'ADMIN';
+        matched = {
+          id: `usr-${Date.now()}`,
+          email,
+          fullName: email.split('@')[0],
+          role,
+          customerId: role === 'CUSTOMER' ? '10000000-0000-0000-0000-000000000001' : undefined,
+          deliveryBoyId: role === 'DELIVERY_BOY' ? 'd0000000-0000-0000-0000-000000000001' : undefined,
+        };
+      }
+      setUser(matched);
+      syncAuthCookies(matched);
+      localStorage.setItem('papertrack_session', JSON.stringify(matched));
+      return { success: true, role: matched.role };
+    }
+
+    throw new Error('Supabase authentication is required in production. Please provide email and password.');
+  }, []);
+
+  const switchDemoUser = useCallback((key: 'admin' | 'delivery' | 'customer') => {
+    // Only permitted in non-production environments
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER !== 'true') {
+      return;
+    }
     const selected = DEMO_USERS[key];
     setUser(selected);
     syncAuthCookies(selected);
-    localStorage.setItem('papertrack_session', JSON.stringify(selected));
-  };
+    try {
+      localStorage.setItem('papertrack_session', JSON.stringify(selected));
+    } catch {
+      // Ignore
+    }
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      } catch {
+        // Ignore sign-out errors
+      }
+    }
     setUser(null);
     syncAuthCookies(null);
-    localStorage.removeItem('papertrack_session');
-  };
-
+    try {
+      localStorage.removeItem('papertrack_session');
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, switchDemoUser, isLoading }}>

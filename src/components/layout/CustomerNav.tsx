@@ -11,7 +11,7 @@ export function CustomerNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, switchDemoUser } = useAuth();
-  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   const navLinks = [
     { label: 'My Dashboard', href: '/customer/dashboard', icon: LayoutDashboard },

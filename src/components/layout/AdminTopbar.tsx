@@ -26,7 +26,7 @@ export function AdminTopbar() {
   const { t, formatLocaleDate } = useTranslation();
   const router = useRouter();
   const today = new Date();
-  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GlobalSearchResult | null>(null);

@@ -11,7 +11,7 @@ export function DeliveryNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, switchDemoUser } = useAuth();
-  const showDemoSwitcher = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
+  const showDemoSwitcher = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEMO_SWITCHER === 'true';
 
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800">
