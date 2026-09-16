@@ -29,6 +29,7 @@ export interface DeliveryBoy {
   failed_login_attempts?: number;
   locked_until?: string | null;
   pin_updated_at?: string;
+  last_login_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -52,6 +53,7 @@ export interface Customer {
   failed_login_attempts?: number;
   locked_until?: string | null;
   pin_updated_at?: string;
+  last_login_at?: string | null;
   created_at?: string;
   updated_at?: string;
   // Joined fields

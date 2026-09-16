@@ -15,6 +15,7 @@ import {
   CreditCard,
   UserCheck,
   PauseCircle,
+  Key,
 } from 'lucide-react';
 import { dataService } from '@/lib/data-service';
 import { Customer, DeliveryBoy } from '@/lib/types';
@@ -22,6 +23,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
+import { CustomerLoginModal } from '@/components/admin/CustomerLoginModal';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -30,6 +32,8 @@ export default function CustomersPage() {
   const [areaFilter, setAreaFilter] = useState('ALL');
   const [deliveryBoyFilter, setDeliveryBoyFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedCustomerForLogin, setSelectedCustomerForLogin] = useState<Customer | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -265,6 +269,18 @@ export default function CustomersPage() {
 
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomerForLogin(customer);
+                            setIsLoginModalOpen(true);
+                          }}
+                          title="Customer Portal Login Details"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 hover:bg-red-50 hover:border-red-200 hover:text-red-700 text-slate-700 font-medium text-xs transition-colors"
+                        >
+                          <Key className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Login</span>
+                        </button>
                         <Link
                           href={`/admin/customers/${customer.id}`}
                           title="View Profile & Statements"
@@ -290,6 +306,16 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      {/* Customer Login Modal Preview */}
+      <CustomerLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => {
+          setIsLoginModalOpen(false);
+          setSelectedCustomerForLogin(null);
+        }}
+        customer={selectedCustomerForLogin}
+      />
     </div>
   );
 }

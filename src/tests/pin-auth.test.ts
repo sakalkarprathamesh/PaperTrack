@@ -358,4 +358,51 @@ describe('PaperTrack — Customer & Delivery Boy PIN Authentication Suite', () =
       }
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 7. ADMIN CUSTOMER CREDENTIALS & PASSWORD RESET
+  // --------------------------------------------------------------------------
+  describe('Admin Customer Credentials & Password Reset Management', () => {
+    it('allows Admin to reset customer password with a valid 4-digit code', () => {
+      const customer = dataService.getCustomers()[0];
+      const oldPinHash = customer.pin_hash;
+      const newPin = '8392';
+
+      const check = validatePin(newPin);
+      expect(check.valid).toBe(true);
+
+      const newHash = hashPin(newPin);
+      dataService.updateCustomer(customer.id, {
+        pin_hash: newHash,
+        failed_login_attempts: 0,
+        locked_until: null,
+      });
+
+      const updated = dataService.getCustomerById(customer.id);
+      expect(updated?.pin_hash).toBe(newHash);
+      expect(updated?.pin_hash).not.toBe(oldPinHash);
+      expect(verifyPin(newPin, updated!.pin_hash!)).toBe(true);
+      expect(verifyPin('1234', updated!.pin_hash!)).toBe(false);
+    });
+
+    it('rejects password resets with non-4-digit codes', () => {
+      expect(validatePin('123').valid).toBe(false);
+      expect(validatePin('12345').valid).toBe(false);
+      expect(validatePin('abcd').valid).toBe(false);
+    });
+
+    it('allows Admin to disable and re-enable customer login', () => {
+      const customer = dataService.getCustomers()[1];
+
+      // Disable login
+      dataService.updateCustomer(customer.id, { login_enabled: false });
+      let updated = dataService.getCustomerById(customer.id);
+      expect(updated?.login_enabled).toBe(false);
+
+      // Re-enable login
+      dataService.updateCustomer(customer.id, { login_enabled: true });
+      updated = dataService.getCustomerById(customer.id);
+      expect(updated?.login_enabled).toBe(true);
+    });
+  });
 });

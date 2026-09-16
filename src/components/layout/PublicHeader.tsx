@@ -23,7 +23,7 @@ export function PublicHeader() {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/customer-login');
+    router.push('/customer/login');
   };
 
   return (
@@ -125,7 +125,7 @@ export function PublicHeader() {
                 Staff / Admin Login
               </Link>
               <Link
-                href="/customer-login"
+                href="/customer/login"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-bold shadow-xs transition-colors"
               >
                 <User className="w-3.5 h-3.5" />
@@ -219,7 +219,7 @@ export function PublicHeader() {
           ) : (
             <div className="space-y-2 pt-1">
               <Link
-                href="/customer-login"
+                href="/customer/login"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-red-700 text-white text-xs font-bold shadow-xs"
               >

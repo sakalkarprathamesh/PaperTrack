@@ -65,7 +65,7 @@ export default function HomePage() {
           {/* Call to Actions */}
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href="/customer-login"
+              href="/customer/login"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold text-sm shadow-md transition-all hover:shadow-lg"
             >
               <User className="w-4 h-4" />
@@ -131,7 +131,7 @@ export default function HomePage() {
           </div>
 
           <Link
-            href="/customer-login"
+            href="/customer/login"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-bold shrink-0 transition-colors"
           >
             <span>Sign In to Your Account</span>

@@ -141,7 +141,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 6. Reset failed attempts upon successful login
+    // 6. Reset failed attempts and update last_login_at upon successful login
+    const nowIso = new Date().toISOString();
     if (isLiveDatabase && adminSupabase) {
       const tableName = mode === 'customer' ? 'customers' : 'delivery_boys';
       await adminSupabase
@@ -149,13 +150,16 @@ export async function POST(request: NextRequest) {
         .update({
           failed_login_attempts: 0,
           locked_until: null,
+          last_login_at: nowIso,
         })
         .eq('id', account.id);
     } else {
       if (mode === 'customer') {
         dataService.resetCustomerFailedAttempts(account.id);
+        dataService.updateCustomer(account.id, { last_login_at: nowIso });
       } else {
         dataService.resetDeliveryBoyFailedAttempts(account.id);
+        dataService.updateDeliveryBoy(account.id, { last_login_at: nowIso });
       }
     }
 

@@ -1,27 +1,38 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { CustomerNav } from '@/components/layout/CustomerNav';
 import { useAuth } from '@/lib/auth-context';
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isLoginPage = pathname === '/customer/login';
 
   useEffect(() => {
+    if (isLoginPage) return;
     if (!isLoading) {
       if (!user) {
-        router.push('/login');
+        router.push('/customer/login');
       } else if (user.role !== 'CUSTOMER' && user.role !== 'ADMIN') {
         router.push('/unauthorized');
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, isLoginPage]);
 
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   if (isLoading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Loading your account...</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
+        Loading your account...
+      </div>
+    );
   }
 
   return (

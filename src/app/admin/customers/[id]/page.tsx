@@ -35,6 +35,8 @@ import { Customer, Bill, Payment, DeliveryRecord, CustomerNote, SubscriptionPaus
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatCurrency, formatDate, formatMonthYear } from '@/lib/utils';
 import { hashPin } from '@/lib/security';
+import { CustomerCredentialsCard } from '@/components/admin/CustomerCredentialsCard';
+import { CustomerLoginModal } from '@/components/admin/CustomerLoginModal';
 
 export default function CustomerProfilePage() {
   const params = useParams();
@@ -49,8 +51,7 @@ export default function CustomerProfilePage() {
   const [pauses, setPauses] = useState<SubscriptionPause[]>([]);
 
   const [activeTab, setActiveTab] = useState<'bills' | 'payments' | 'deliveries' | 'notes' | 'pauses'>('bills');
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Internal Notes State
   const [newNoteText, setNewNoteText] = useState('');
@@ -83,15 +84,6 @@ export default function CustomerProfilePage() {
     );
     setNotes(dataService.getCustomerNotes(customerId));
     setPauses(dataService.getPauses(customerId));
-  };
-
-  const handleCreateLogin = () => {
-    const tempPin = Math.floor(1000 + Math.random() * 9000).toString();
-    const pinHash = hashPin(tempPin);
-    dataService.updateCustomer(customerId, { pin_hash: pinHash });
-    setCustomer(dataService.getCustomerById(customerId));
-    setGeneratedPassword(tempPin);
-    setShowLoginModal(true);
   };
 
   // Internal Notes Handlers
@@ -222,7 +214,7 @@ export default function CustomerProfilePage() {
           </button>
 
           <button
-            onClick={handleCreateLogin}
+            onClick={() => setIsLoginModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs"
           >
             <Key className="w-3.5 h-3.5 text-slate-600" />
@@ -355,6 +347,16 @@ export default function CustomerProfilePage() {
             <p className="text-slate-400 text-[11px]">Strictly hidden from delivery staff & customer</p>
           </div>
         </div>
+      </div>
+
+      {/* Customer Login Credentials Section */}
+      <div className="no-print">
+        <CustomerCredentialsCard
+          customer={customer}
+          onCustomerUpdated={(updates) => {
+            setCustomer((prev) => (prev ? { ...prev, ...updates } : prev));
+          }}
+        />
       </div>
 
       {/* Tabs (hidden on print) */}
@@ -851,55 +853,12 @@ export default function CustomerProfilePage() {
         </div>
       )}
 
-      {/* Modal for Customer Login Credentials */}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-50 text-red-700 flex items-center justify-center">
-                <Key className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Customer Portal Login</h3>
-                <p className="text-xs text-slate-500">Share these private credentials with {customer.name}</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
-              <div className="flex justify-between items-center py-0.5">
-                <span className="text-slate-500">Portal Login URL:</span>
-                <span className="font-mono font-semibold text-slate-800">/customer-login</span>
-              </div>
-              <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
-                <span className="text-slate-500">Login ID (10-Digit Mobile):</span>
-                <span className="font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded border border-slate-200 text-sm">
-                  {customer.login_id || customer.phone.replace(/\D/g, '').slice(-10)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-0.5 border-t border-slate-200/60">
-                <span className="text-slate-500">New 4-Digit Password:</span>
-                <span className="font-mono font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded border border-red-200 text-sm">
-                  {generatedPassword}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500">
-              The customer can securely view their bills, receipts, payment history, and Lokmat delivery status on their phone.
-              This 4-digit PIN has been cryptographically hashed with scrypt and will not be displayed again.
-            </p>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setShowLoginModal(false)}
-                className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Customer Login Modal Preview */}
+      <CustomerLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        customer={customer}
+      />
     </div>
   );
 }
