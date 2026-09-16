@@ -101,7 +101,7 @@ export function PublicHeader() {
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-semibold shadow-xs transition-colors"
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" />
-                    <span>Today's Route</span>
+                    <span>Today&apos;s Route</span>
                   </Link>
                 </>
               )}
@@ -139,7 +139,7 @@ export function PublicHeader() {
         <div className="flex md:hidden items-center gap-2">
           {!user && (
             <Link
-              href="/customer-login"
+              href="/customer/login"
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-700 text-white text-xs font-bold"
             >
               <span>Customer Login</span>

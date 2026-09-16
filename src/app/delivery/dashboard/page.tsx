@@ -9,14 +9,27 @@ import { StatCard } from '@/components/shared/StatCard';
 
 export default function DeliveryDashboardPage() {
   const { user } = useAuth();
-  const deliveryBoyId = user?.deliveryBoyId || 'd0000000-0000-0000-0000-000000000001';
+  const deliveryBoyId = user?.deliveryBoyId;
 
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    const s = dataService.getDeliveryBoyDashboardStats(deliveryBoyId);
-    setStats(s);
+    if (deliveryBoyId) {
+      const s = dataService.getDeliveryBoyDashboardStats(deliveryBoyId);
+      setStats(s);
+    }
   }, [deliveryBoyId]);
+
+  if (!deliveryBoyId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 my-8">
+        <h2 className="text-base font-bold text-slate-900">No Delivery Route Assigned</h2>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          Your delivery staff profile is not currently linked to an active delivery route. Please contact the Agency Admin.
+        </p>
+      </div>
+    );
+  }
 
   if (!stats) return <div className="p-6 text-slate-500">Loading delivery status...</div>;
 
@@ -35,7 +48,7 @@ export default function DeliveryDashboardPage() {
             Welcome, {user?.fullName || 'Delivery Staff'}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Shivaji Nagar Morning Newspaper Distribution Route
+            Morning Newspaper Distribution Route
           </p>
         </div>
 
@@ -44,7 +57,7 @@ export default function DeliveryDashboardPage() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold text-xs shadow-xs"
         >
           <Truck className="w-4 h-4" />
-          <span>Open Today's Checklist</span>
+          <span>Open Today&apos;s Checklist</span>
           <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
@@ -78,7 +91,7 @@ export default function DeliveryDashboardPage() {
         <h2 className="font-bold text-base text-slate-900">Delivery Guidelines</h2>
         <ul className="text-xs text-slate-600 space-y-2 list-disc list-inside">
           <li>Complete morning deliveries before 7:30 AM.</li>
-          <li>If a customer's gate is locked, check special notes in the checklist.</li>
+          <li>If a customer&apos;s gate is locked, check special notes in the checklist.</li>
           <li>Mark any paused or skipped houses immediately so billing calculates correctly.</li>
           <li>For route adjustments or address questions, contact Admin directly.</li>
         </ul>

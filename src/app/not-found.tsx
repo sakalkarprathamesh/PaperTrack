@@ -18,11 +18,11 @@ export default function NotFound() {
         </div>
         <div className="pt-2">
           <Link
-            href="/admin/dashboard"
+            href="/"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-bold transition-colors shadow-xs"
           >
             <Home className="w-3.5 h-3.5" />
-            <span>Return to Dashboard</span>
+            <span>Return to Home</span>
           </Link>
         </div>
       </div>

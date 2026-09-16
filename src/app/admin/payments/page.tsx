@@ -20,8 +20,10 @@ import { Payment } from '@/lib/types';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
+import { useAuth } from '@/lib/auth-context';
 
 export default function PaymentsPage() {
+  const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [search, setSearch] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
@@ -68,7 +70,7 @@ export default function PaymentsPage() {
       dataService.reversePayment(
         selectedPaymentForReversal.id,
         reversalReason.trim(),
-        'a0000000-0000-0000-0000-000000000001'
+        user?.id || 'admin'
       );
       setSelectedPaymentForReversal(null);
       setReversalReason('');
@@ -338,7 +340,7 @@ export default function PaymentsPage() {
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
               <p className="font-bold">Important Audit Notice:</p>
               <p>
-                Financial records are never deleted. Reversing this payment will reopen the customer's
+                Financial records are never deleted. Reversing this payment will reopen the customer&apos;s
                 unpaid bills and adjust any advance credit applied. This action is permanently logged.
               </p>
             </div>

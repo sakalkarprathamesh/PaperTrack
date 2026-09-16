@@ -19,7 +19,7 @@ import { formatDate } from '@/lib/utils';
 
 export default function DeliveryTodayPage() {
   const { user } = useAuth();
-  const deliveryBoyId = user?.deliveryBoyId || 'd0000000-0000-0000-0000-000000000001';
+  const deliveryBoyId = user?.deliveryBoyId;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -27,10 +27,15 @@ export default function DeliveryTodayPage() {
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    loadDeliveries();
+    if (deliveryBoyId) {
+      loadDeliveries();
+    } else {
+      setItems([]);
+    }
   }, [selectedDate, deliveryBoyId]);
 
   const loadDeliveries = () => {
+    if (!deliveryBoyId) return;
     const list = dataService.getDailyDeliveries(selectedDate, deliveryBoyId);
     setItems(list);
   };
@@ -71,6 +76,17 @@ export default function DeliveryTodayPage() {
     );
   });
 
+  if (!deliveryBoyId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 my-8">
+        <h2 className="text-base font-bold text-slate-900">No Delivery Route Assigned</h2>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          Your delivery staff profile is not currently linked to an active delivery route. Please contact the Agency Admin to assign your customer route.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Route Header */}
@@ -79,7 +95,7 @@ export default function DeliveryTodayPage() {
           <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 bg-red-50 px-2 py-0.5 rounded">
             Morning Distribution Roster
           </span>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Today's Delivery Checklist</h1>
+          <h1 className="text-xl font-bold text-slate-900 mt-1">Today&apos;s Delivery Checklist</h1>
           <p className="text-xs text-slate-500">
             Assigned route: <strong className="text-slate-800">Shivaji Nagar, Sector 1-4</strong>
           </p>

@@ -17,8 +17,10 @@ import { dataService } from '@/lib/data-service';
 import { Customer, PaymentMode, Payment } from '@/lib/types';
 import { allocatePayment } from '@/lib/billing-engine';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
 export default function NewPaymentPage() {
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const preSelectedCustomerId = searchParams.get('customerId');
@@ -94,7 +96,7 @@ export default function NewPaymentPage() {
         paymentDate,
         upiReference: paymentMode === 'UPI' ? upiReference.trim() : undefined,
         notes: notes.trim() || undefined,
-        recordedBy: 'a0000000-0000-0000-0000-000000000001',
+        recordedBy: user?.id || 'admin',
       });
 
       setCompletedPayment(payment);

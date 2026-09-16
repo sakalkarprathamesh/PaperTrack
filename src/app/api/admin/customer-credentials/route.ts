@@ -3,8 +3,20 @@ import { validatePin, hashPin } from '@/lib/security';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { dataService } from '@/lib/data-service';
 
+function isAuthorizedAdmin(request: NextRequest): boolean {
+  const role = request.cookies.get('papertrack_role')?.value?.toUpperCase();
+  return role === 'ADMIN';
+}
+
 export async function POST(request: NextRequest) {
   try {
+    if (!isAuthorizedAdmin(request)) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Admin privileges required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const { customerId, newPin } = body;
 
@@ -87,6 +99,13 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    if (!isAuthorizedAdmin(request)) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Admin privileges required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const { customerId, loginEnabled } = body;
 

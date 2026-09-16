@@ -79,7 +79,7 @@ export function DeliveryNav() {
           }`}
         >
           <Truck className="w-4 h-4" />
-          <span>Today's Checklist</span>
+          <span>Today&apos;s Checklist</span>
         </Link>
         <Link
           href="/delivery/dashboard"

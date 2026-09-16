@@ -12,13 +12,17 @@ import { exportToCSV } from '@/lib/export-csv';
 
 export default function CustomerBillsPage() {
   const { user } = useAuth();
-  const customerId = user?.customerId || '10000000-0000-0000-0000-000000000001';
+  const customerId = user?.customerId;
 
   const [bills, setBills] = useState<Bill[]>([]);
 
   useEffect(() => {
-    const list = dataService.getBills(undefined, customerId);
-    setBills(list);
+    if (customerId) {
+      const list = dataService.getBills(undefined, customerId);
+      setBills(list);
+    } else {
+      setBills([]);
+    }
   }, [customerId]);
 
   const handleExport = () => {

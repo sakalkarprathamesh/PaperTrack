@@ -316,7 +316,7 @@ export default function LoginPage() {
                     type="email"
                     required
                     disabled={isLocked || isLoading}
-                    placeholder="sakalkarashok77@gmail.com"
+                    placeholder="admin@example.com"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-red-700 focus:ring-1 focus:ring-red-700 disabled:bg-slate-50"

@@ -35,9 +35,8 @@ export function CustomerCredentialsCard({
   const loginId = customer.login_id || customer.phone.replace(/\D/g, '').slice(-10);
   const isLoginActive = customer.login_enabled !== false && customer.status !== 'CANCELLED';
 
-  // Demo default seed password is '1234' for seed customers
-  const defaultKnownPin = customer.pin_hash && customer.id.startsWith('10000000') ? '1234' : null;
-  const [activePassword, setActivePassword] = useState<string | null>(defaultKnownPin);
+  // Passwords are cryptographically hashed; only newly assigned passwords in the active session are held in memory
+  const [activePassword, setActivePassword] = useState<string | null>(null);
   const [isPasswordRevealed, setIsPasswordRevealed] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 

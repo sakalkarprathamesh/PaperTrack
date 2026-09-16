@@ -9,14 +9,18 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function CustomerPaymentsPage() {
   const { user } = useAuth();
-  const customerId = user?.customerId || '10000000-0000-0000-0000-000000000001';
+  const customerId = user?.customerId;
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
 
   useEffect(() => {
-    const list = dataService.getPayments(customerId);
-    setPayments(list);
+    if (customerId) {
+      const list = dataService.getPayments(customerId);
+      setPayments(list);
+    } else {
+      setPayments([]);
+    }
   }, [customerId]);
 
   return (

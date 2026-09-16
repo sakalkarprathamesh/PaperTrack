@@ -61,7 +61,7 @@ export default function AdminDashboardPage() {
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold text-xs transition-colors shadow-xs"
           >
             <Truck className="w-4 h-4" />
-            <span>Today's Deliveries</span>
+            <span>Today&apos;s Deliveries</span>
           </Link>
           <Link
             href="/admin/payments/new"

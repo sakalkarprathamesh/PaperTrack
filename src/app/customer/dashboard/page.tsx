@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Phone,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { dataService } from '@/lib/data-service';
 import { useAuth } from '@/lib/auth-context';
@@ -20,14 +21,28 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 
 export default function CustomerDashboardPage() {
   const { user } = useAuth();
-  const customerId = user?.customerId || '10000000-0000-0000-0000-000000000001';
+  const customerId = user?.customerId;
 
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    const s = dataService.getCustomerDashboardStats(customerId);
-    setStats(s);
+    if (customerId) {
+      const s = dataService.getCustomerDashboardStats(customerId);
+      setStats(s);
+    }
   }, [customerId]);
+
+  if (!customerId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 my-8">
+        <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+        <h2 className="text-base font-bold text-slate-900">No Subscriber Profile Linked</h2>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          We could not locate an active newspaper subscription record for this account. Please contact your agency administrator.
+        </p>
+      </div>
+    );
+  }
 
   if (!stats) return <div className="p-8 text-slate-500">Loading your dashboard...</div>;
 
@@ -46,7 +61,7 @@ export default function CustomerDashboardPage() {
             Namaskar, {stats.customer?.name || 'Subscriber'}!
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Plot 12, Swapnanagari, Lane 3, Shivaji Nagar
+            {stats.customer?.address || 'Subscriber Portal'}
           </p>
         </div>
 

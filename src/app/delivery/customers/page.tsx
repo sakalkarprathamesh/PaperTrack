@@ -7,16 +7,20 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function DeliveryCustomersPage() {
   const { user } = useAuth();
-  const deliveryBoyId = user?.deliveryBoyId || 'd0000000-0000-0000-0000-000000000001';
+  const deliveryBoyId = user?.deliveryBoyId;
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const list = dataService.customers.filter(
-      (c) => c.delivery_boy_id === deliveryBoyId && c.status !== 'CANCELLED'
-    );
-    setCustomers(list);
+    if (deliveryBoyId) {
+      const list = dataService.customers.filter(
+        (c) => c.delivery_boy_id === deliveryBoyId && c.status !== 'CANCELLED'
+      );
+      setCustomers(list);
+    } else {
+      setCustomers([]);
+    }
   }, [deliveryBoyId]);
 
   const filtered = customers.filter((c) => {
@@ -24,6 +28,17 @@ export default function DeliveryCustomersPage() {
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.address.toLowerCase().includes(q);
   });
+
+  if (!deliveryBoyId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 my-8">
+        <h2 className="text-base font-bold text-slate-900">No Delivery Route Assigned</h2>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          Your delivery staff profile is not currently linked to an active delivery route. Please contact the Agency Admin.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

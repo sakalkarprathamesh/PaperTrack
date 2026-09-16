@@ -14,14 +14,14 @@ export default function CustomerBillDetailPage() {
   const params = useParams();
   const billId = params.id as string;
   const { user } = useAuth();
-  const customerId = user?.customerId || '10000000-0000-0000-0000-000000000001';
+  const customerId = user?.customerId;
 
   const [bill, setBill] = useState<Bill | null>(null);
 
   useEffect(() => {
     const b = dataService.getBillById(billId);
     // Security check: Customer can only view their own bill
-    if (b && b.customer_id === customerId) {
+    if (customerId && b && b.customer_id === customerId) {
       setBill(b);
     } else {
       setBill(null);

@@ -31,15 +31,25 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 3. CUSTOMER ROUTES GUARD
-  if (pathname.startsWith('/customer')) {
+  // 3. CUSTOMER ROUTES GUARD (allow unauthenticated access to /customer/login)
+  if (pathname.startsWith('/customer') && pathname !== '/customer/login') {
     if (!userRole) {
-      const loginUrl = new URL('/login', request.url);
+      const loginUrl = new URL('/customer/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
     if (userRole !== 'CUSTOMER' && userRole !== 'ADMIN') {
       return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+  }
+
+  // 4. PRIVILEGED ADMIN API ROUTES GUARD
+  if (pathname.startsWith('/api/admin')) {
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Unauthorized. Admin privileges required.' },
+        { status: 401 }
+      );
     }
   }
 
@@ -59,5 +69,6 @@ export const config = {
     '/admin/:path*',
     '/delivery/:path*',
     '/customer/:path*',
+    '/api/admin/:path*',
   ],
 };

@@ -46,6 +46,7 @@ interface AuthContextType {
     mode?: 'admin' | 'customer' | 'delivery_boy'
   ) => Promise<{ success: boolean; role: UserRole }>;
   logout: () => Promise<void>;
+  updateProfile: (updates: { fullName?: string }) => Promise<{ success: boolean; error?: string }>;
   switchDemoUser: (key: 'admin' | 'delivery' | 'customer') => void;
   isLoading: boolean;
   isConfigured: boolean;
@@ -398,12 +399,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  const updateProfile = useCallback(
+    async (updates: { fullName?: string }): Promise<{ success: boolean; error?: string }> => {
+      if (!user) {
+        return { success: false, error: 'No authenticated user session found.' };
+      }
+
+      const trimmedName = (updates.fullName || '').trim();
+      if (!trimmedName || trimmedName.length < 2) {
+        return { success: false, error: 'Display name must be at least 2 characters long.' };
+      }
+      if (trimmedName.length > 100) {
+        return { success: false, error: 'Display name must not exceed 100 characters.' };
+      }
+
+      if (isSupabaseConfigured()) {
+        try {
+          const supabase = createClient();
+          const { error: updateError, data } = await supabase
+            .from('profiles')
+            .update({
+              full_name: trimmedName,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id)
+            .select('id, full_name');
+
+          if (updateError) {
+            console.error('Supabase profile update error:', updateError);
+            return { success: false, error: updateError.message || 'Failed to update profile in database.' };
+          }
+
+          if (!data || data.length === 0) {
+            // If profile row doesn't exist yet for this auth user, upsert it
+            const { error: upsertError } = await supabase
+              .from('profiles')
+              .upsert({
+                id: user.id,
+                full_name: trimmedName,
+                role: user.role.toLowerCase(),
+                updated_at: new Date().toISOString(),
+              });
+
+            if (upsertError) {
+              console.error('Supabase profile upsert error:', upsertError);
+              return { success: false, error: upsertError.message || 'Failed to persist profile in database.' };
+            }
+          }
+        } catch (err: any) {
+          console.error('Profile update exception:', err);
+          return { success: false, error: err.message || 'Network error updating profile.' };
+        }
+      }
+
+      // Update local state and sync cookie session
+      const updatedUser: AuthUser = {
+        ...user,
+        fullName: trimmedName,
+      };
+      setUser(updatedUser);
+      syncAuthCookies(updatedUser);
+
+      return { success: true };
+    },
+    [user]
+  );
+
   return (
     <AuthContext.Provider
       value={{
         user,
         login,
         logout,
+        updateProfile,
         switchDemoUser,
         isLoading,
         isConfigured: isSupabaseConfigured(),

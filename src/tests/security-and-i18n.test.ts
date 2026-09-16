@@ -153,3 +153,112 @@ describe('Phase 6 — SEO & Privacy Protection Rules', () => {
     expect(disallowRoutes).toContain('/customer/');
   });
 });
+
+describe('Production Hardening — Middleware Route Interception and Access Guards', () => {
+  // Pure functional implementation of middleware routing logic for direct unit verification
+  function evaluateMiddlewareRoute(
+    pathname: string,
+    roleCookie?: string
+  ): { action: 'next' | 'redirect' | 'unauthorized_json'; destination?: string; status?: number } {
+    const userRole = roleCookie?.toUpperCase();
+
+    // 1. ADMIN ROUTES GUARD
+    if (pathname.startsWith('/admin')) {
+      if (!userRole) {
+        return { action: 'redirect', destination: `/login?redirect=${encodeURIComponent(pathname)}` };
+      }
+      if (userRole !== 'ADMIN') {
+        return { action: 'redirect', destination: '/unauthorized' };
+      }
+    }
+
+    // 2. DELIVERY STAFF ROUTES GUARD
+    if (pathname.startsWith('/delivery')) {
+      if (!userRole) {
+        return { action: 'redirect', destination: `/login?redirect=${encodeURIComponent(pathname)}` };
+      }
+      if (userRole !== 'DELIVERY_BOY' && userRole !== 'ADMIN') {
+        return { action: 'redirect', destination: '/unauthorized' };
+      }
+    }
+
+    // 3. CUSTOMER ROUTES GUARD (allow unauthenticated access to /customer/login)
+    if (pathname.startsWith('/customer') && pathname !== '/customer/login') {
+      if (!userRole) {
+        return { action: 'redirect', destination: `/customer/login?redirect=${encodeURIComponent(pathname)}` };
+      }
+      if (userRole !== 'CUSTOMER' && userRole !== 'ADMIN') {
+        return { action: 'redirect', destination: '/unauthorized' };
+      }
+    }
+
+    // 4. PRIVILEGED ADMIN API ROUTES GUARD
+    if (pathname.startsWith('/api/admin')) {
+      if (userRole !== 'ADMIN') {
+        return { action: 'unauthorized_json', status: 401 };
+      }
+    }
+
+    return { action: 'next' };
+  }
+
+  it('allows unauthenticated visitors to reach /customer/login without redirect', () => {
+    const result = evaluateMiddlewareRoute('/customer/login', undefined);
+    expect(result.action).toBe('next');
+    expect(result.destination).toBeUndefined();
+  });
+
+  it('redirects unauthenticated visitors attempting /customer/dashboard directly to /customer/login', () => {
+    const result = evaluateMiddlewareRoute('/customer/dashboard', undefined);
+    expect(result.action).toBe('redirect');
+    expect(result.destination).toBe('/customer/login?redirect=%2Fcustomer%2Fdashboard');
+  });
+
+  it('redirects unauthenticated visitors attempting /customer/bills directly to /customer/login', () => {
+    const result = evaluateMiddlewareRoute('/customer/bills', undefined);
+    expect(result.action).toBe('redirect');
+    expect(result.destination).toBe('/customer/login?redirect=%2Fcustomer%2Fbills');
+  });
+
+  it('redirects unauthenticated visitors attempting /admin/dashboard to /login', () => {
+    const result = evaluateMiddlewareRoute('/admin/dashboard', undefined);
+    expect(result.action).toBe('redirect');
+    expect(result.destination).toBe('/login?redirect=%2Fadmin%2Fdashboard');
+  });
+
+  it('blocks non-admin callers from privileged /api/admin routes with status 401', () => {
+    const noRole = evaluateMiddlewareRoute('/api/admin/customer-credentials', undefined);
+    expect(noRole.action).toBe('unauthorized_json');
+    expect(noRole.status).toBe(401);
+
+    const customerRole = evaluateMiddlewareRoute('/api/admin/customer-credentials', 'customer');
+    expect(customerRole.action).toBe('unauthorized_json');
+    expect(customerRole.status).toBe(401);
+
+    const deliveryRole = evaluateMiddlewareRoute('/api/admin/customer-credentials', 'delivery_boy');
+    expect(deliveryRole.action).toBe('unauthorized_json');
+    expect(deliveryRole.status).toBe(401);
+  });
+
+  it('grants admin access to /api/admin routes regardless of role case casing', () => {
+    const upperAdmin = evaluateMiddlewareRoute('/api/admin/customer-credentials', 'ADMIN');
+    expect(upperAdmin.action).toBe('next');
+
+    const lowerAdmin = evaluateMiddlewareRoute('/api/admin/customer-credentials', 'admin');
+    expect(lowerAdmin.action).toBe('next');
+  });
+
+  it('allows authenticated customers into customer dashboard and bills', () => {
+    const dashResult = evaluateMiddlewareRoute('/customer/dashboard', 'customer');
+    expect(dashResult.action).toBe('next');
+
+    const billResult = evaluateMiddlewareRoute('/customer/bills/bill-123', 'CUSTOMER');
+    expect(billResult.action).toBe('next');
+  });
+
+  it('allows Admin to inspect customer and delivery staff routes', () => {
+    expect(evaluateMiddlewareRoute('/customer/dashboard', 'admin').action).toBe('next');
+    expect(evaluateMiddlewareRoute('/delivery/today', 'admin').action).toBe('next');
+  });
+});
+

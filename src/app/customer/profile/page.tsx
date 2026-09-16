@@ -10,15 +10,28 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 
 export default function CustomerProfilePage() {
   const { user } = useAuth();
-  const customerId = user?.customerId || '10000000-0000-0000-0000-000000000001';
+  const customerId = user?.customerId;
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const settings = dataService.getAgencySettings();
 
   useEffect(() => {
-    const c = dataService.getCustomerById(customerId);
-    setCustomer(c);
+    if (customerId) {
+      const c = dataService.getCustomerById(customerId);
+      setCustomer(c);
+    }
   }, [customerId]);
+
+  if (!customerId) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 my-8">
+        <h2 className="text-base font-bold text-slate-900">No Subscriber Profile Linked</h2>
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          We could not locate an active subscriber record for this account. Please contact your agency administrator.
+        </p>
+      </div>
+    );
+  }
 
   if (!customer) return <div className="p-8 text-slate-500">Loading subscriber profile...</div>;
 

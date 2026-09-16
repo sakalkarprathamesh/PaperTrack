@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 
 export default function AgencySettingsPage() {
-  const { user, isConfigured } = useAuth();
+  const { user, isConfigured, updateProfile } = useAuth();
   const currentSettings = dataService.getAgencySettings();
 
   const [formData, setFormData] = useState({
@@ -35,6 +35,18 @@ export default function AgencySettingsPage() {
   });
 
   const [saved, setSaved] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+
+  // Sync admin display name when user profile loads/updates
+  useEffect(() => {
+    if (user?.fullName) {
+      setFormData((prev) => ({
+        ...prev,
+        admin_display_name: user.fullName,
+      }));
+    }
+  }, [user?.fullName]);
 
   // Admin Password Change state
   const [newPassword, setNewPassword] = useState('');
@@ -64,18 +76,63 @@ export default function AgencySettingsPage() {
     });
   }, []);
 
-  const handleSubmitSettings = (e: React.FormEvent) => {
+  const handleSubmitSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    dataService.updateAgencySettings({
-      agency_name: formData.agency_name,
-      agency_phone: formData.agency_phone,
-      agency_address: formData.agency_address,
-      default_daily_rate: formData.default_daily_rate,
-      receipt_prefix: formData.receipt_prefix,
-      upi_id: formData.upi_id,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3500);
+    setSettingsError('');
+    setSaved(false);
+
+    const trimmedAdminName = formData.admin_display_name.trim();
+    if (!trimmedAdminName || trimmedAdminName.length < 2) {
+      setSettingsError('Admin display name must be at least 2 characters long.');
+      return;
+    }
+
+    setSettingsLoading(true);
+    try {
+      // 1. Update Admin display name in Supabase profiles via AuthContext
+      const profileResult = await updateProfile({ fullName: trimmedAdminName });
+      if (!profileResult.success) {
+        throw new Error(profileResult.error || 'Failed to update admin display name in database.');
+      }
+
+      // 2. Persist agency settings to Supabase if configured
+      if (isConfigured) {
+        const supabase = createClient();
+        const { error: agencyDbError } = await supabase
+          .from('agency_settings')
+          .update({
+            agency_name: formData.agency_name.trim(),
+            agency_phone: formData.agency_phone.trim(),
+            agency_address: formData.agency_address.trim(),
+            default_daily_rate: Number(formData.default_daily_rate) || 5.0,
+            receipt_prefix: formData.receipt_prefix.trim(),
+            upi_id: formData.upi_id.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (agencyDbError) {
+          console.warn('Supabase agency_settings update notice:', agencyDbError.message);
+        }
+      }
+
+      // 3. Keep local dataService in sync
+      dataService.updateAgencySettings({
+        agency_name: formData.agency_name.trim(),
+        agency_phone: formData.agency_phone.trim(),
+        agency_address: formData.agency_address.trim(),
+        default_daily_rate: Number(formData.default_daily_rate) || 5.0,
+        receipt_prefix: formData.receipt_prefix.trim(),
+        upi_id: formData.upi_id.trim(),
+      });
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3500);
+    } catch (err: any) {
+      setSettingsError(err.message || 'Unable to save settings. Please try again.');
+    } finally {
+      setSettingsLoading(false);
+    }
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -124,6 +181,13 @@ export default function AgencySettingsPage() {
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span>Agency settings updated successfully!</span>
+        </div>
+      )}
+
+      {settingsError && (
+        <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          <span>{settingsError}</span>
         </div>
       )}
 
@@ -239,10 +303,11 @@ export default function AgencySettingsPage() {
           <div className="pt-4 border-t border-slate-200 flex justify-end">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-semibold shadow-xs transition-colors"
+              disabled={settingsLoading}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              <span>Save Agency Details</span>
+              <span>{settingsLoading ? 'Saving Settings...' : 'Save Agency Details'}</span>
             </button>
           </div>
         </form>

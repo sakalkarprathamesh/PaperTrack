@@ -16,8 +16,10 @@ import {
 import { dataService } from '@/lib/data-service';
 import { DeliveryStatus, DeliveryBoy } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 
 export default function DailyDeliveryDeskPage() {
+  const { user } = useAuth();
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [deliveryBoyFilter, setDeliveryBoyFilter] = useState('ALL');
@@ -46,7 +48,7 @@ export default function DailyDeliveryDeskPage() {
       customerId,
       deliveryDate: selectedDate,
       status: newStatus,
-      markedBy: 'a0000000-0000-0000-0000-000000000001', // Admin
+      markedBy: user?.id || 'admin',
     });
     loadDeliveries();
   };
@@ -66,7 +68,7 @@ export default function DailyDeliveryDeskPage() {
       customerIds: uncompletedIds,
       deliveryDate: selectedDate,
       status: 'DELIVERED',
-      markedBy: 'a0000000-0000-0000-0000-000000000001',
+      markedBy: user?.id || 'admin',
     });
 
     setNotification(`Marked ${uncompletedIds.length} customers as DELIVERED.`);
